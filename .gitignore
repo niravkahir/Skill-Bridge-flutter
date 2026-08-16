@@ -1,0 +1,23 @@
+# Firebase secrets
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+lib/firebase_options.dart
+
+# Flutter generated
+build/
+.dart_tool/
+.pub-cache/
+.pub/
+*.lock
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Keys/secrets
+*.key
+*.pem
+.env
+secrets/
+keys/
