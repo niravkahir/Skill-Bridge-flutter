@@ -6,40 +6,27 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Get current user
   User? get currentUser => _auth.currentUser;
-
-  // Get user ID
   String? get userId => _auth.currentUser?.uid;
-
-  // Check if user is logged in
   bool get isLoggedIn => _auth.currentUser != null;
 
-  // Register with email & password
-  // Register with email & password
   Future<UserModel> registerWithEmailPassword({
     required String email,
     required String password,
     required String fullName,
   }) async {
     try {
-      print('📝 Starting registration for: $email');
-
-      // 1. Create user in Firebase Auth
       final UserCredential userCredential =
       await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      print('✅ Auth user created: ${userCredential.user?.uid}');
-
       final User? user = userCredential.user;
       if (user == null) {
         throw Exception('User creation failed');
       }
 
-      // 2. Save user data to Firestore
       final UserModel userModel = UserModel(
         id: user.uid,
         email: email,
@@ -52,9 +39,7 @@ class AuthService {
       await _firestore.collection('users').doc(user.uid).set(
         userModel.toFirestore(),
       );
-      print('✅ User saved to Firestore');
 
-      // 3. Create empty profile
       await _firestore.collection('profiles').doc(user.uid).set({
         'user_id': user.uid,
         'full_name': fullName,
@@ -66,25 +51,20 @@ class AuthService {
         'created_at': Timestamp.now(),
         'updated_at': Timestamp.now(),
       });
-      print('✅ Profile created in Firestore');
 
       return userModel;
     } on FirebaseAuthException catch (e) {
-      print('❌ FirebaseAuthException: ${e.code} - ${e.message}');
       throw _handleAuthError(e);
     } catch (e) {
-      print('❌ Unexpected error: $e');
       throw Exception('Registration failed: ${e.toString()}');
     }
   }
 
-  // Login with email & password
   Future<UserModel> loginWithEmailPassword({
     required String email,
     required String password,
   }) async {
     try {
-      // 1. Sign in to Firebase Auth
       final UserCredential userCredential =
       await _auth.signInWithEmailAndPassword(
         email: email,
@@ -96,7 +76,6 @@ class AuthService {
         throw Exception('Login failed');
       }
 
-      // 2. Get user data from Firestore
       final DocumentSnapshot doc = await _firestore
           .collection('users')
           .doc(user.uid)
@@ -117,7 +96,6 @@ class AuthService {
     }
   }
 
-  // Reset password
   Future<void> resetPassword({required String email}) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
@@ -126,7 +104,6 @@ class AuthService {
     }
   }
 
-  // Logout
   Future<void> logout() async {
     try {
       await _auth.signOut();
@@ -135,7 +112,6 @@ class AuthService {
     }
   }
 
-  // Handle Firebase Auth Errors
   String _handleAuthError(FirebaseAuthException e) {
     switch (e.code) {
       case 'user-not-found':

@@ -7,7 +7,8 @@ class ProfileModel {
   final int semester;
   final String bio;
   final String profileImage;
-  final String verificationStatus; // 'pending', 'verified', 'rejected'
+  final String verificationStatus;
+  final String? email;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -20,6 +21,7 @@ class ProfileModel {
     required this.bio,
     required this.profileImage,
     required this.verificationStatus,
+    this.email,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -34,6 +36,7 @@ class ProfileModel {
       bio: data['bio'] ?? '',
       profileImage: data['profile_image'] ?? '',
       verificationStatus: data['verification_status'] ?? 'pending',
+      email: data['email'],  // ✅ ADD THIS
       createdAt: (data['created_at'] as Timestamp).toDate(),
       updatedAt: (data['updated_at'] as Timestamp).toDate(),
     );
@@ -51,5 +54,33 @@ class ProfileModel {
       'created_at': Timestamp.fromDate(createdAt),
       'updated_at': Timestamp.fromDate(updatedAt),
     };
+  }
+
+  ProfileModel copyWith({
+    String? id,
+    String? userId,
+    String? fullName,
+    String? college,
+    int? semester,
+    String? bio,
+    String? profileImage,
+    String? verificationStatus,
+    String? email,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return ProfileModel(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      fullName: fullName ?? this.fullName,
+      college: college ?? this.college,
+      semester: semester ?? this.semester,
+      bio: bio ?? this.bio,
+      profileImage: profileImage ?? this.profileImage,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
+      email: email ?? this.email,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
   }
 }
