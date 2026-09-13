@@ -9,6 +9,7 @@ build/
 .pub-cache/
 .pub/
 *.lock
+.flutter-plugins-dependencies
 
 # IDE
 .idea/

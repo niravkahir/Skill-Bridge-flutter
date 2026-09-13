@@ -3,9 +3,11 @@ import 'package:provider/provider.dart';
 import '../../config/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
-import '../../screens/auth/login_screen.dart';
+import '../../widgets/common/app_bar.dart';
 import '../../screens/student/profile_screen.dart';
 import '../../screens/student/edit_profile_screen.dart';
+import '../../screens/student/add_skill_screen.dart';
+import '../../screens/student/search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,164 +23,72 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
-
-      if (authProvider.user != null) {
-        profileProvider.loadProfile(authProvider.user!.id);
-      }
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final profile = Provider.of<ProfileProvider>(context, listen: false);
+      if (auth.user != null) profile.loadProfile(auth.user!.id);
     });
-  }
-
-  void _logout(BuildContext context) async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              await authProvider.logout();
-              if (context.mounted) {
-                Navigator.pop(context);
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                );
-              }
-            },
-            child: const Text(
-              'Logout',
-              style: TextStyle(color: AppColors.error),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isTablet = screenWidth > 600;
-
-    if (!authProvider.isAuthenticated) {
-      return const SizedBox.shrink();
-    }
+    final auth = Provider.of<AuthProvider>(context);
+    if (!auth.isAuthenticated) return const SizedBox.shrink();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Skill Bridge'),
-        actions: [
-          IconButton(
-            onPressed: () => _logout(context),
-            icon: const Icon(Icons.logout),
-          ),
-        ],
+      // ✅ Pass tab info so dropdown can switch tabs
+      appBar: ProfessionalAppBar(
+        currentTab: _selectedIndex,
+        onTabSelect: (i) => setState(() => _selectedIndex = i),
       ),
-      body: SafeArea(
-        child: _getBody(_selectedIndex, isTablet),
-      ),
+      body: SafeArea(child: _getBody(_selectedIndex)),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
+        onTap: (i) => setState(() => _selectedIndex = i),
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.textSecondary,
-        type: isTablet ? BottomNavigationBarType.fixed : BottomNavigationBarType.fixed,
+        type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search),
-            label: 'Search',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
         ],
       ),
     );
   }
 
-  Widget _getBody(int index, bool isTablet) {
+  Widget _getBody(int index) {
     switch (index) {
       case 0:
-        return _buildHomeContent(isTablet);
+        return _buildHome();
       case 1:
+      // ✅ No AppBar — HomeScreen already provides it
         return const ProfileScreen();
       case 2:
-        return const Center(child: Text('Search Screen - Coming Soon'));
+      // ✅ No AppBar — HomeScreen already provides it
+        return const SearchScreen();
       default:
         return const SizedBox.shrink();
     }
   }
 
-  Widget _buildHomeContent(bool isTablet) {
+  Widget _buildHome() {
     return Consumer<ProfileProvider>(
-      builder: (context, profileProvider, child) {
-        if (profileProvider.isLoading) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
+      builder: (context, provider, _) {
+        if (provider.isLoading) {
+          return const Center(child: CircularProgressIndicator());
         }
 
-        if (profileProvider.error != null) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, color: AppColors.error, size: 60),
-                const SizedBox(height: 16),
-                Text(
-                  'Error loading profile',
-                  style: TextStyle(color: AppColors.error),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  profileProvider.error!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                    profileProvider.loadProfile(authProvider.user!.id);
-                  },
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          );
-        }
+        final profile = provider.profile;
+        final name = profile?.fullName ?? 'User';
 
-        final profile = profileProvider.profile;
-        final fullName = profile?.fullName ?? 'No Name Set';
-
-        return Padding(
-          padding: EdgeInsets.all(isTablet ? 24 : 16),
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Welcome Card
               Container(
                 width: double.infinity,
-                padding: EdgeInsets.all(isTablet ? 24 : 20),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: AppColors.primaryGradient,
                   borderRadius: BorderRadius.circular(16),
@@ -186,180 +96,100 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Welcome back,',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: isTablet ? 18 : 16,
-                      ),
-                    ),
+                    Text('Welcome back,',
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.8), fontSize: 16)),
                     const SizedBox(height: 4),
-                    Text(
-                      fullName,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: isTablet ? 28 : 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
+                    Text(name,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            profile?.college ?? 'No College Set',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
-                              fontSize: isTablet ? 16 : 14,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            'Semester ${profile?.semester ?? 1}',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
-                              fontSize: isTablet ? 16 : 14,
-                            ),
-                          ),
-                        ),
+                        _pill(profile?.college ?? 'No College'),
+                        _pill('Semester ${profile?.semester ?? 1}'),
                       ],
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 24),
-
-              // Quick Stats
               Row(
                 children: [
-                  _buildStatCard(
-                    'Teaching',
-                    profileProvider.teachSkillsWithDetails.length.toString(),
-                    Icons.school,
-                    isTablet,
-                  ),
+                  _statCard('Teaching',
+                      provider.teachSkillsWithDetails.length.toString(),
+                      Icons.school),
                   const SizedBox(width: 12),
-                  _buildStatCard(
-                    'Learning',
-                    profileProvider.learnSkillsWithDetails.length.toString(),
-                    Icons.book,
-                    isTablet,
-                  ),
+                  _statCard('Learning',
+                      provider.learnSkillsWithDetails.length.toString(),
+                      Icons.book),
                   const SizedBox(width: 12),
-                  _buildStatCard(
-                    'Status',
-                    profileProvider.isVerified ? 'Verified' : 'Pending',
-                    Icons.verified,
-                    isTablet,
-                    iconColor: profileProvider.isVerified ? Colors.green : Colors.orange,
-                  ),
+                  _statCard(
+                      'Status',
+                      provider.isVerified ? 'Verified' : 'Pending',
+                      Icons.verified,
+                      iconColor:
+                      provider.isVerified ? Colors.green : Colors.orange),
                 ],
               ),
               const SizedBox(height: 24),
-
-              // Quick Actions
-              Text(
-                'Quick Actions',
-                style: TextStyle(
-                  fontSize: isTablet ? 20 : 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              const Text('Quick Actions',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-
-              // Responsive Grid for Quick Actions
-              isTablet
-                  ? GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 4,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                children: [
-                  _buildActionCard('Edit Profile', Icons.edit, () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const EditProfileScreen(),
-                      ),
-                    ).then((_) {
-                      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                      profileProvider.loadProfile(authProvider.user!.id);
-                    });
-                  }, isTablet),
-                  _buildActionCard('Add Skills', Icons.add_circle, () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Skill selection coming soon!')),
-                    );
-                  }, isTablet),
-                  _buildActionCard('Find Students', Icons.search, () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Search coming soon!')),
-                    );
-                  }, isTablet),
-                  _buildActionCard('My Meetings', Icons.video_call, () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Meetings coming soon!')),
-                    );
-                  }, isTablet),
-                ],
-              )
-                  : SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildActionCard('Edit Profile', Icons.edit, () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const EditProfileScreen(),
-                        ),
-                      ).then((_) {
-                        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                        profileProvider.loadProfile(authProvider.user!.id);
-                      });
-                    }, isTablet),
-                    const SizedBox(width: 12),
-                    _buildActionCard('Add Skills', Icons.add_circle, () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Skill selection coming soon!')),
-                      );
-                    }, isTablet),
-                    const SizedBox(width: 12),
-                    _buildActionCard('Find Students', Icons.search, () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Search coming soon!')),
-                      );
-                    }, isTablet),
-                    // const SizedBox(width: 12),
-                    // _buildActionCard('My Meetings', Icons.video_call, () {
-                    //   ScaffoldMessenger.of(context).showSnackBar(
-                    //     const SnackBar(content: Text('Meetings coming soon!')),
-                    //   );
-                    // }, isTablet),
-                  ],
-                ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final cardWidth = (constraints.maxWidth - 24) / 3;
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      _actionCard('Edit Profile', Icons.edit, cardWidth, () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const EditProfileScreen()),
+                        ).then((_) {
+                          final auth =
+                          Provider.of<AuthProvider>(context, listen: false);
+                          provider.loadProfile(auth.user!.id);
+                        });
+                      }),
+                      _actionCard('Add Skills', Icons.add_circle, cardWidth, () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const AddSkillScreen()),
+                        ).then((_) {
+                          final auth =
+                          Provider.of<AuthProvider>(context, listen: false);
+                          provider.loadProfile(auth.user!.id);
+                        });
+                      }),
+                      _actionCard('Find Students', Icons.search, cardWidth, () {
+                        setState(() => _selectedIndex = 2);
+                      }),
+                      _actionCard('My Meetings', Icons.video_call, cardWidth, () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Meetings - Coming Soon')),
+                        );
+                      }),
+                      _actionCard('Reviews', Icons.star, cardWidth, () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Reviews - Coming Soon')),
+                        );
+                      }),
+                      _actionCard('Requests', Icons.mail, cardWidth, () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Requests - Coming Soon')),
+                        );
+                      }),
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -368,71 +198,69 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, bool isTablet, {Color? iconColor}) {
+  Widget _pill(String text) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.2),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Text(text,
+        style: TextStyle(
+            color: Colors.white.withOpacity(0.9), fontSize: 14)),
+  );
+
+  Widget _statCard(String label, String value, IconData icon,
+      {Color? iconColor}) {
     return Expanded(
       child: Container(
-        padding: EdgeInsets.all(isTablet ? 20 : 16),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppColors.textHint.withOpacity(0.2),
-          ),
+          border: Border.all(color: AppColors.textHint.withOpacity(0.2)),
         ),
         child: Column(
           children: [
-            Icon(icon, color: iconColor ?? AppColors.primary, size: isTablet ? 32 : 28),
+            Icon(icon, color: iconColor ?? AppColors.primary, size: 28),
             const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: isTablet ? 24 : 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: isTablet ? 14 : 12,
-                color: AppColors.textSecondary,
-              ),
-            ),
+            Text(value,
+                style: const TextStyle(
+                    fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActionCard(String title, IconData icon, VoidCallback onTap, bool isTablet) {
-    final double cardWidth = isTablet ? 120 : 100;
-    final double iconSize = isTablet ? 36 : 32;
-    final double fontSize = isTablet ? 14 : 12;
-
+  Widget _actionCard(
+      String title, IconData icon, double width, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        width: cardWidth,
-        padding: EdgeInsets.all(isTablet ? 20 : 16),
+        width: width,
+        height: 110,
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppColors.textHint.withOpacity(0.2),
-          ),
+          border: Border.all(color: AppColors.textHint.withOpacity(0.2)),
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: AppColors.primary, size: iconSize),
+            Icon(icon, color: AppColors.primary, size: 30),
             const SizedBox(height: 8),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: fontSize,
-                fontWeight: FontWeight.w500,
-              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style:
+              const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
             ),
           ],
         ),

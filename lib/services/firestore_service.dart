@@ -6,6 +6,8 @@ import '../models/user_skill_model.dart';
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // ==================== USER OPERATIONS ====================
+
   Future<UserModel?> getUser(String userId) async {
     try {
       final doc = await _firestore.collection('users').doc(userId).get();
@@ -17,6 +19,8 @@ class FirestoreService {
       throw Exception('Failed to get user: $e');
     }
   }
+
+  // ==================== PROFILE OPERATIONS ====================
 
   Future<ProfileModel?> getProfile(String userId) async {
     try {
@@ -64,23 +68,36 @@ class FirestoreService {
     }
   }
 
+  // ==================== SKILL OPERATIONS (User) ====================
+
+  // Get only ACTIVE skills (for normal users) - SORTED IN DART (no index needed)
   Future<List<Map<String, dynamic>>> getAllSkills() async {
     try {
       final snapshot = await _firestore
           .collection('skills')
           .where('status', isEqualTo: 'active')
-          .orderBy('name')
           .get();
-      return snapshot.docs.map((doc) => {
+
+      // Sort in Dart to avoid needing a composite index
+      final docs = snapshot.docs.toList();
+      docs.sort((a, b) => (a.data()['name'] ?? '')
+          .toString()
+          .toLowerCase()
+          .compareTo((b.data()['name'] ?? '').toString().toLowerCase()));
+
+      return docs
+          .map((doc) => {
         'id': doc.id,
         ...doc.data(),
-      }).toList();
+      })
+          .toList();
     } catch (e) {
       throw Exception('Failed to get skills: $e');
     }
   }
 
-  Future<List<UserSkillModel>> getUserSkills(String userId, {String? type}) async {
+  Future<List<UserSkillModel>> getUserSkills(String userId,
+      {String? type}) async {
     try {
       Query query = _firestore
           .collection('user_skills')
@@ -91,15 +108,17 @@ class FirestoreService {
       }
 
       final snapshot = await query.get();
-      return snapshot.docs.map((doc) =>
-          UserSkillModel.fromFirestore(doc.data() as Map<String, dynamic>, doc.id)
-      ).toList();
+      return snapshot.docs
+          .map((doc) => UserSkillModel.fromFirestore(
+          doc.data() as Map<String, dynamic>, doc.id))
+          .toList();
     } catch (e) {
       throw Exception('Failed to get user skills: $e');
     }
   }
 
-  Future<List<Map<String, dynamic>>> getUserSkillsWithDetails(String userId) async {
+  Future<List<Map<String, dynamic>>> getUserSkillsWithDetails(
+      String userId) async {
     try {
       final userSkills = await getUserSkills(userId);
       final List<Map<String, dynamic>> result = [];
@@ -163,11 +182,12 @@ class FirestoreService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getAllStudents(String currentUserId) async {
+  // ==================== STUDENT DISCOVERY ====================
+
+  Future<List<Map<String, dynamic>>> getAllStudents(
+      String currentUserId) async {
     try {
-      final snapshot = await _firestore
-          .collection('profiles')
-          .get();
+      final snapshot = await _firestore.collection('profiles').get();
 
       final List<Map<String, dynamic>> students = [];
       for (var doc in snapshot.docs) {
@@ -207,18 +227,14 @@ class FirestoreService {
 
   Future<Map<String, dynamic>?> getStudentProfile(String userId) async {
     try {
-      final profileDoc = await _firestore
-          .collection('profiles')
-          .doc(userId)
-          .get();
+      final profileDoc =
+      await _firestore.collection('profiles').doc(userId).get();
 
       if (!profileDoc.exists) return null;
 
       final profileData = profileDoc.data()!;
-      final userDoc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .get();
+      final userDoc =
+      await _firestore.collection('users').doc(userId).get();
 
       String email = '';
       if (userDoc.exists) {
@@ -236,11 +252,144 @@ class FirestoreService {
         'semester': profileData['semester'] ?? 1,
         'bio': profileData['bio'] ?? '',
         'profile_image': profileData['profile_image'] ?? '',
-        'verification_status': profileData['verification_status'] ?? 'pending',
+        'verification_status':
+        profileData['verification_status'] ?? 'pending',
         'email': email,
       };
     } catch (e) {
       throw Exception('Failed to get student profile: $e');
+    }
+  }
+
+  // ==================== SEARCH BY SKILL ====================
+
+  Future<List<Map<String, dynamic>>> searchStudentsBySkill({
+    required String skillId,
+    required String currentUserId,
+  }) async {
+    try {
+      // Step 1: Find all user_skills where skill_id matches and type = 'teach'
+      final skillDocs = await _firestore
+          .collection('user_skills')
+          .where('skill_id', isEqualTo: skillId)
+          .where('type', isEqualTo: 'teach')
+          .get();
+
+      if (skillDocs.docs.isEmpty) return [];
+
+      // Step 2: Collect user IDs (max 10 for whereIn)
+      final userIds = skillDocs.docs
+          .map((d) => d.data()['user_id'] as String)
+          .where((id) => id != currentUserId)
+          .toSet()
+          .take(10)
+          .toList();
+
+      if (userIds.isEmpty) return [];
+
+      // Step 3: Get their profiles
+      final profileDocs = await _firestore
+          .collection('profiles')
+          .where('user_id', whereIn: userIds)
+          .get();
+
+      // Step 4: Get their emails
+      final userDocs = await _firestore
+          .collection('users')
+          .where(FieldPath.documentId, whereIn: userIds)
+          .get();
+
+      final emailMap = <String, String>{};
+      for (var d in userDocs.docs) {
+        emailMap[d.id] = (d.data()['email'] ?? '') as String;
+      }
+
+      // Step 5: Build result list
+      return profileDocs.docs.map((d) {
+        final data = d.data();
+        return {
+          'profile_id': d.id,
+          'user_id': data['user_id'] ?? '',
+          'full_name': data['full_name'] ?? 'Unknown',
+          'college': data['college'] ?? '',
+          'semester': data['semester'] ?? 1,
+          'bio': data['bio'] ?? '',
+          'profile_image': data['profile_image'] ?? '',
+          'verification_status': data['verification_status'] ?? 'pending',
+          'email': emailMap[data['user_id']] ?? '',
+        };
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to search by skill: $e');
+    }
+  }
+
+  // ==================== ADMIN SKILL MANAGEMENT ====================
+
+  // Add new skill (admin only)
+  Future<void> addSkill({
+    required String name,
+    required String category,
+  }) async {
+    try {
+      await _firestore.collection('skills').add({
+        'name': name,
+        'category': category,
+        'status': 'active',
+        'created_at': Timestamp.now(),
+      });
+    } catch (e) {
+      throw Exception('Failed to add skill: $e');
+    }
+  }
+
+  // Update existing skill (admin only)
+  Future<void> updateSkill({
+    required String skillId,
+    required String name,
+    required String category,
+    required String status,
+  }) async {
+    try {
+      await _firestore.collection('skills').doc(skillId).update({
+        'name': name,
+        'category': category,
+        'status': status,
+      });
+    } catch (e) {
+      throw Exception('Failed to update skill: $e');
+    }
+  }
+
+  // Delete skill (admin only)
+  Future<void> deleteSkill(String skillId) async {
+    try {
+      await _firestore.collection('skills').doc(skillId).delete();
+    } catch (e) {
+      throw Exception('Failed to delete skill: $e');
+    }
+  }
+
+  // Get ALL skills including inactive (for admin) - SORTED IN DART
+  Future<List<Map<String, dynamic>>> getAllSkillsForAdmin() async {
+    try {
+      final snapshot = await _firestore.collection('skills').get();
+
+      // Sort in Dart to avoid needing a composite index
+      final docs = snapshot.docs.toList();
+      docs.sort((a, b) => (a.data()['name'] ?? '')
+          .toString()
+          .toLowerCase()
+          .compareTo((b.data()['name'] ?? '').toString().toLowerCase()));
+
+      return docs
+          .map((doc) => {
+        'id': doc.id,
+        ...doc.data(),
+      })
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get skills: $e');
     }
   }
 }
