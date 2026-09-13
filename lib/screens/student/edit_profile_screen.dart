@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -23,7 +22,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _collegeController = TextEditingController();
   final _semesterController = TextEditingController();
   final _bioController = TextEditingController();
-  File? _selectedImage;
+  XFile? _selectedImage;
   bool _isUploading = false;
 
   @override
@@ -33,7 +32,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   void _loadProfileData() {
-    final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
+    final profileProvider =
+    Provider.of<ProfileProvider>(context, listen: false);
     final profile = profileProvider.profile;
 
     if (profile != null) {
@@ -54,7 +54,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _pickImage() async {
-    final ImagePicker picker = ImagePicker();
+    final picker = ImagePicker();
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
       maxWidth: 500,
@@ -63,33 +63,52 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
 
     if (image != null) {
-      setState(() {
-        _selectedImage = File(image.path);
-      });
+      setState(() => _selectedImage = image);
     }
   }
 
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isUploading = true;
-    });
+    setState(() => _isUploading = true);
 
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final profileProvider = Provider.of<ProfileProvider>(context, listen: false);
+      final profileProvider =
+      Provider.of<ProfileProvider>(context, listen: false);
       final userId = authProvider.user!.id;
 
-      // 1. Upload profile picture if selected
+      // 1. Upload image FIRST if selected
       if (_selectedImage != null) {
-        await profileProvider.uploadProfilePicture(
+        print('🚀 Uploading image...');
+
+        final uploadSuccess = await profileProvider.uploadProfilePicture(
           userId,
           _selectedImage!,
         );
+
+        if (!uploadSuccess) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Image upload failed: ${profileProvider.error ?? "Unknown error"}',
+                ),
+                backgroundColor: AppColors.error,
+                duration: const Duration(seconds: 6),
+              ),
+            );
+            setState(() => _isUploading = false);
+          }
+          return; // STOP
+        }
+
+        print('✅ Image uploaded and URL saved');
+      } else {
+        print('⚠️ No image selected — skipping upload');
       }
 
-      // 2. Save profile data
+      // 2. Save profile text data
       final success = await profileProvider.saveProfile(
         userId: userId,
         fullName: _nameController.text.trim(),
@@ -115,20 +134,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         );
       }
     } catch (e) {
+      print('❌ Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
+            content: Text('Error: $e'),
             backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 6),
           ),
         );
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isUploading = false;
-        });
-      }
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -141,7 +158,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         title: const Text('Edit Profile'),
         actions: [
           TextButton(
-            onPressed: _isUploading ? null : () async {
+            onPressed: _isUploading
+                ? null
+                : () async {
               await _saveProfile();
             },
             child: Text(
@@ -189,7 +208,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                   ),
 
-                  // Name
                   CustomTextField(
                     label: 'Full Name',
                     hint: 'Enter your full name',
@@ -198,7 +216,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // College
                   CustomTextField(
                     label: 'College',
                     hint: 'Enter your college name',
@@ -212,7 +229,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Semester
                   CustomTextField(
                     label: 'Semester',
                     hint: 'Enter your semester (1-8)',
@@ -231,7 +247,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Bio
                   CustomTextField(
                     label: 'Bio',
                     hint: 'Tell others about yourself',
@@ -248,10 +263,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // Save Button
                   CustomButton(
                     text: 'Save Profile',
-                    onPressed: _isUploading ? null : () async {
+                    onPressed: _isUploading
+                        ? null
+                        : () async {
                       await _saveProfile();
                     },
                     isLoading: _isUploading,

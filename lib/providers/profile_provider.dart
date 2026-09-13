@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import '../models/profile_model.dart';
 import '../models/user_skill_model.dart';
 import '../services/firestore_service.dart';
-import '../services/storage_service.dart';
+import '../services/cloudinary_service.dart';
 
 class ProfileProvider extends ChangeNotifier {
   final FirestoreService _firestore = FirestoreService();
-  final StorageService _storage = StorageService();
+  final CloudinaryService _cloudinary = CloudinaryService();
 
   ProfileModel? _profile;
   List<UserSkillModel> _teachSkills = [];
@@ -17,42 +17,46 @@ class ProfileProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
-  // Getters
+  // ==================== GETTERS ====================
   ProfileModel? get profile => _profile;
   List<UserSkillModel> get teachSkills => _teachSkills;
   List<UserSkillModel> get learnSkills => _learnSkills;
-  List<Map<String, dynamic>> get teachSkillsWithDetails => _teachSkillsWithDetails;
-  List<Map<String, dynamic>> get learnSkillsWithDetails => _learnSkillsWithDetails;
+  List<Map<String, dynamic>> get teachSkillsWithDetails =>
+      _teachSkillsWithDetails;
+  List<Map<String, dynamic>> get learnSkillsWithDetails =>
+      _learnSkillsWithDetails;
   bool get isLoading => _isLoading;
   String? get error => _error;
   String get fullName => _profile?.fullName ?? 'Unknown';
   String get profileImage => _profile?.profileImage ?? '';
   bool get isVerified => _profile?.verificationStatus == 'verified';
 
-  // Load profile data
+  // ==================== LOAD PROFILE ====================
   Future<void> loadProfile(String userId) async {
     _setLoading(true);
     _error = null;
 
     try {
-      // Load profile
       _profile = await _firestore.getProfile(userId);
 
-      // Load skills with details
-      _teachSkillsWithDetails = await _firestore.getUserSkillsWithDetails(userId)
-          .then((skills) => skills.where((s) => s['type'] == 'teach').toList());
+      final allSkills = await _firestore.getUserSkillsWithDetails(userId);
 
-      _learnSkillsWithDetails = await _firestore.getUserSkillsWithDetails(userId)
-          .then((skills) => skills.where((s) => s['type'] == 'learn').toList());
+      _teachSkillsWithDetails =
+          allSkills.where((s) => s['type'] == 'teach').toList();
+      _learnSkillsWithDetails =
+          allSkills.where((s) => s['type'] == 'learn').toList();
 
+      print('✅ Profile loaded. Teach: ${_teachSkillsWithDetails.length}, '
+          'Learn: ${_learnSkillsWithDetails.length}');
     } catch (e) {
       _error = e.toString();
+      print('❌ loadProfile error: $e');
     } finally {
       _setLoading(false);
     }
   }
 
-  // Create or update profile
+  // ==================== SAVE PROFILE ====================
   Future<bool> saveProfile({
     required String userId,
     required String fullName,
@@ -82,26 +86,37 @@ class ProfileProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       _error = e.toString();
+      print('❌ saveProfile error: $e');
       return false;
     } finally {
       _setLoading(false);
     }
   }
 
-  // Upload profile picture
-  Future<bool> uploadProfilePicture(String userId, File imageFile) async {
+  // ==================== UPLOAD PROFILE PICTURE (CLOUDINARY) ====================
+  Future<bool> uploadProfilePicture(String userId, XFile imageFile) async {
     _setLoading(true);
     _error = null;
 
     try {
-      final imageUrl = await _storage.uploadProfileImage(userId, imageFile);
-      await _firestore.updateProfilePicture(userId, imageUrl);
+      print('📸 Starting upload for user: $userId');
 
+      // 1. Upload to Cloudinary
+      final imageUrl = await _cloudinary.uploadProfileImage(userId, imageFile);
+      print('✅ Cloudinary URL: $imageUrl');
+
+      // 2. Save URL to Firestore
+      await _firestore.updateProfilePicture(userId, imageUrl);
+      print('✅ Firestore updated with image URL');
+
+      // 3. Update local state
       if (_profile != null) {
         _profile = _profile!.copyWith(profileImage: imageUrl);
       }
+
       return true;
     } catch (e) {
+      print('❌ Upload failed: $e');
       _error = e.toString();
       return false;
     } finally {
@@ -109,7 +124,7 @@ class ProfileProvider extends ChangeNotifier {
     }
   }
 
-  // Add skill
+  // ==================== ADD SKILL ====================
   Future<bool> addSkill({
     required String userId,
     required String skillId,
@@ -126,28 +141,28 @@ class ProfileProvider extends ChangeNotifier {
       );
 
       await _firestore.addUserSkill(userSkill);
-
-      // Reload skills
       await loadProfile(userId);
       return true;
     } catch (e) {
       _error = e.toString();
+      print('❌ addSkill error: $e');
       return false;
     }
   }
 
-  // Remove skill
+  // ==================== REMOVE SKILL ====================
   Future<bool> removeSkill(String skillId) async {
     try {
       await _firestore.removeUserSkill(skillId);
       return true;
     } catch (e) {
       _error = e.toString();
+      print('❌ removeSkill error: $e');
       return false;
     }
   }
 
-  // Remove all skills by type
+  // ==================== REMOVE ALL SKILLS BY TYPE ====================
   Future<bool> removeAllSkills(String userId, String type) async {
     try {
       await _firestore.removeUserSkillsByType(userId, type);
@@ -158,11 +173,12 @@ class ProfileProvider extends ChangeNotifier {
     }
   }
 
-  // Clear error
+  // ==================== CLEAR ERROR ====================
   void clearError() {
     _error = null;
   }
 
+  // ==================== HELPER ====================
   void _setLoading(bool loading) {
     _isLoading = loading;
     notifyListeners();
