@@ -15,7 +15,8 @@ class _AdminSkillScreenState extends State<AdminSkillScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<SkillProvider>(context, listen: false).loadAllSkillsForAdmin();
+      Provider.of<SkillProvider>(context, listen: false)
+          .loadAllSkillsForAdmin();
     });
   }
 
@@ -39,61 +40,99 @@ class _AdminSkillScreenState extends State<AdminSkillScreen> {
         itemBuilder: (context, i) {
           final skill = provider.allSkills[i];
           final isActive = skill['status'] == 'active';
+
           return Card(
             margin: const EdgeInsets.only(bottom: 12),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 8),
-              leading: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.school,
-                    color: AppColors.primary),
-              ),
-              title: Text(skill['name'] ?? 'Unknown',
-                  style:
-                  const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Row(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
                 children: [
-                  Text(skill['category'] ?? 'Uncategorized'),
-                  const SizedBox(width: 8),
+                  // Leading icon
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color:
-                      (isActive ? AppColors.success : AppColors.error)
-                          .withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      color: AppColors.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Text(
-                      skill['status'] ?? 'active',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isActive
-                            ? AppColors.success
-                            : AppColors.error,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    child: const Icon(Icons.school,
+                        color: AppColors.primary),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Title + subtitle
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          skill['name'] ?? 'Unknown',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                skill['category'] ?? 'Uncategorized',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textSecondary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: (isActive
+                                    ? AppColors.success
+                                    : AppColors.error)
+                                    .withOpacity(0.1),
+                                borderRadius:
+                                BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                skill['status'] ?? 'active',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isActive
+                                      ? AppColors.success
+                                      : AppColors.error,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+
+                  // Actions
                   IconButton(
                     onPressed: () => _showSkillDialog(skill),
                     icon: const Icon(Icons.edit,
                         color: AppColors.primary),
+                    iconSize: 20,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   ),
+                  const SizedBox(width: 8),
                   IconButton(
                     onPressed: () => _confirmDelete(skill['id']),
                     icon: const Icon(Icons.delete,
                         color: AppColors.error),
+                    iconSize: 20,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   ),
                 ],
               ),
@@ -123,46 +162,49 @@ class _AdminSkillScreenState extends State<AdminSkillScreen> {
           shape:
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(isEdit ? 'Edit Skill' : 'Add New Skill'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Skill Name',
-                  hintText: 'e.g., Flutter, Python',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: catCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Category',
-                  hintText: 'e.g., Programming, Design',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              if (isEdit) ...[
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: status,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
                   decoration: InputDecoration(
-                    labelText: 'Status',
+                    labelText: 'Skill Name',
+                    hintText: 'e.g., Flutter, Python',
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'active', child: Text('Active')),
-                    DropdownMenuItem(
-                        value: 'inactive', child: Text('Inactive')),
-                  ],
-                  onChanged: (v) => setDialogState(() => status = v!),
                 ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: catCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Category',
+                    hintText: 'e.g., Programming, Design',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                if (isEdit) ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: status,
+                    decoration: InputDecoration(
+                      labelText: 'Status',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                          value: 'active', child: Text('Active')),
+                      DropdownMenuItem(
+                          value: 'inactive', child: Text('Inactive')),
+                    ],
+                    onChanged: (v) => setDialogState(() => status = v!),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
           actions: [
             TextButton(

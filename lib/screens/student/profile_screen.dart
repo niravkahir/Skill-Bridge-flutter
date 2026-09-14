@@ -43,7 +43,6 @@ class ProfileScreen extends StatelessWidget {
     )
         : _buildContent(context, profileProvider, authProvider);
 
-    // Show AppBar ONLY when standalone (not inside HomeScreen)
     if (showAppBar) {
       return Scaffold(
         appBar: const ProfessionalAppBar(showBack: true),
@@ -51,7 +50,6 @@ class ProfileScreen extends StatelessWidget {
       );
     }
 
-    // Inside HomeScreen → no AppBar (HomeScreen already has one)
     return content;
   }
 
@@ -63,10 +61,14 @@ class ProfileScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
+          // Profile Picture and Name
           Center(
             child: Column(
               children: [
-                ProfilePicture(imageUrl: profile.profileImage, size: 120),
+                ProfilePicture(
+                  imageUrl: profile.profileImage,
+                  size: 120,
+                ),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -88,6 +90,8 @@ class ProfileScreen extends StatelessWidget {
               ],
             ),
           ),
+
+          // Info Cards
           ProfileInfoCard(
             icon: Icons.school,
             label: 'College',
@@ -100,6 +104,8 @@ class ProfileScreen extends StatelessWidget {
             value: 'Semester ${profile.semester}',
           ),
           const SizedBox(height: 12),
+
+          // About
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -139,6 +145,8 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
+
+          // Skills
           _skillSection(
             title: '🛠️ Skills I Can Teach',
             skills: profileProvider.teachSkillsWithDetails,
@@ -157,17 +165,21 @@ class ProfileScreen extends StatelessWidget {
             },
           ),
           const SizedBox(height: 24),
+
+          // ✅ FIXED: Edit Profile — no stale context
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
+              onPressed: () async {
+                final userId = authProvider.user!.id;
+                await Navigator.push(
                   context,
                   MaterialPageRoute(
                       builder: (_) => const EditProfileScreen()),
-                ).then((_) {
-                  profileProvider.loadProfile(authProvider.user!.id);
-                });
+                );
+                if (context.mounted) {
+                  profileProvider.loadProfile(userId);
+                }
               },
               icon: const Icon(Icons.edit),
               label: const Text('Edit Profile'),

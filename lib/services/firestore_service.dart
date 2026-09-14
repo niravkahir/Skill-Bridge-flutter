@@ -392,4 +392,130 @@ class FirestoreService {
       throw Exception('Failed to get skills: $e');
     }
   }
+
+  // ==================== USER STATS ====================
+
+  /// Get average rating for a user (from reviews collection)
+  Future<double> getAverageRating(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('reviews')
+          .where('reviewed_user_id', isEqualTo: userId)
+          .get();
+
+      if (snapshot.docs.isEmpty) return 0.0;
+
+      double total = 0;
+      for (var doc in snapshot.docs) {
+        total += (doc.data()['rating'] ?? 0) as int;
+      }
+      return total / snapshot.docs.length;
+    } catch (e) {
+      return 0.0;
+    }
+  }
+
+  /// Count of reviews for a user
+  Future<int> getReviewCount(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('reviews')
+          .where('reviewed_user_id', isEqualTo: userId)
+          .get();
+      return snapshot.docs.length;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  /// Count of meetings taught (completed)
+  Future<int> getTaughtCount(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('meetings')
+          .where('teacher_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'completed')
+          .get();
+      return snapshot.docs.length;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  /// Count of meetings learned (completed)
+  Future<int> getLearnedCount(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('meetings')
+          .where('learner_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'completed')
+          .get();
+      return snapshot.docs.length;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  /// Get pending requests count (incoming)
+  Future<int> getIncomingRequestsCount(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('learning_requests')
+          .where('receiver_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'pending')
+          .get();
+      return snapshot.docs.length;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  /// Get all stats for any user in one call
+  Future<Map<String, dynamic>> getUserStats(String userId) async {
+    try {
+      // Average rating
+      final reviewsSnap = await _firestore
+          .collection('reviews')
+          .where('reviewed_user_id', isEqualTo: userId)
+          .get();
+
+      double avgRating = 0.0;
+      if (reviewsSnap.docs.isNotEmpty) {
+        double total = 0;
+        for (var doc in reviewsSnap.docs) {
+          total += (doc.data()['rating'] ?? 0) as int;
+        }
+        avgRating = total / reviewsSnap.docs.length;
+      }
+
+      // Taught count
+      final taughtSnap = await _firestore
+          .collection('meetings')
+          .where('teacher_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'completed')
+          .get();
+
+      // Learned count
+      final learnedSnap = await _firestore
+          .collection('meetings')
+          .where('learner_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'completed')
+          .get();
+
+      return {
+        'average_rating': avgRating,
+        'review_count': reviewsSnap.docs.length,
+        'taught_count': taughtSnap.docs.length,
+        'learned_count': learnedSnap.docs.length,
+      };
+    } catch (e) {
+      print('❌ getUserStats error: $e');
+      return {
+        'average_rating': 0.0,
+        'review_count': 0,
+        'taught_count': 0,
+        'learned_count': 0,
+      };
+    }
+  }
 }

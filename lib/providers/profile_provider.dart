@@ -16,6 +16,12 @@ class ProfileProvider extends ChangeNotifier {
   List<Map<String, dynamic>> _learnSkillsWithDetails = [];
   bool _isLoading = false;
   String? _error;
+  // Stats
+  double _averageRating = 0.0;
+  int _reviewCount = 0;
+  int _taughtCount = 0;
+  int _learnedCount = 0;
+  int _incomingRequestsCount = 0;
 
   // ==================== GETTERS ====================
   ProfileModel? get profile => _profile;
@@ -30,6 +36,11 @@ class ProfileProvider extends ChangeNotifier {
   String get fullName => _profile?.fullName ?? 'Unknown';
   String get profileImage => _profile?.profileImage ?? '';
   bool get isVerified => _profile?.verificationStatus == 'verified';
+  double get averageRating => _averageRating;
+  int get reviewCount => _reviewCount;
+  int get taughtCount => _taughtCount;
+  int get learnedCount => _learnedCount;
+  int get incomingRequestsCount => _incomingRequestsCount;
 
   // ==================== LOAD PROFILE ====================
   Future<void> loadProfile(String userId) async {
@@ -37,17 +48,26 @@ class ProfileProvider extends ChangeNotifier {
     _error = null;
 
     try {
+      // Load profile
       _profile = await _firestore.getProfile(userId);
 
+      // Load skills
       final allSkills = await _firestore.getUserSkillsWithDetails(userId);
-
       _teachSkillsWithDetails =
           allSkills.where((s) => s['type'] == 'teach').toList();
       _learnSkillsWithDetails =
           allSkills.where((s) => s['type'] == 'learn').toList();
 
+      // ✅ Load stats
+      _averageRating = await _firestore.getAverageRating(userId);
+      _reviewCount = await _firestore.getReviewCount(userId);
+      _taughtCount = await _firestore.getTaughtCount(userId);
+      _learnedCount = await _firestore.getLearnedCount(userId);
+      _incomingRequestsCount = await _firestore.getIncomingRequestsCount(userId);
+
       print('✅ Profile loaded. Teach: ${_teachSkillsWithDetails.length}, '
-          'Learn: ${_learnSkillsWithDetails.length}');
+          'Learn: ${_learnSkillsWithDetails.length}, '
+          'Rating: $_averageRating, Taught: $_taughtCount, Learned: $_learnedCount');
     } catch (e) {
       _error = e.toString();
       print('❌ loadProfile error: $e');

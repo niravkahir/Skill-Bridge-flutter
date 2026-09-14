@@ -35,7 +35,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!auth.isAuthenticated) return const SizedBox.shrink();
 
     return Scaffold(
-      // ✅ Pass tab info so dropdown can switch tabs
       appBar: ProfessionalAppBar(
         currentTab: _selectedIndex,
         onTabSelect: (i) => setState(() => _selectedIndex = i),
@@ -61,10 +60,8 @@ class _HomeScreenState extends State<HomeScreen> {
       case 0:
         return _buildHome();
       case 1:
-      // ✅ No AppBar — HomeScreen already provides it
         return const ProfileScreen();
       case 2:
-      // ✅ No AppBar — HomeScreen already provides it
         return const SearchScreen();
       default:
         return const SizedBox.shrink();
@@ -86,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ==================== WELCOME CARD ====================
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -96,15 +94,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Welcome back,',
-                        style: TextStyle(
-                            color: Colors.white.withOpacity(0.8), fontSize: 16)),
+                    Text(
+                      'Welcome back,',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 16,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    Text(name,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold)),
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -118,27 +123,42 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 24),
+
+              // ==================== STATS ROW ====================
+              // ✅ Rating | Taught | Learned (replaces Pending)
               Row(
                 children: [
-                  _statCard('Teaching',
-                      provider.teachSkillsWithDetails.length.toString(),
-                      Icons.school),
-                  const SizedBox(width: 12),
-                  _statCard('Learning',
-                      provider.learnSkillsWithDetails.length.toString(),
-                      Icons.book),
+                  _statCard(
+                    label: 'Rating',
+                    value: provider.reviewCount > 0
+                        ? '${provider.averageRating.toStringAsFixed(1)} ★'
+                        : '—',
+                    icon: Icons.star,
+                    iconColor: Colors.amber,
+                  ),
                   const SizedBox(width: 12),
                   _statCard(
-                      'Status',
-                      provider.isVerified ? 'Verified' : 'Pending',
-                      Icons.verified,
-                      iconColor:
-                      provider.isVerified ? Colors.green : Colors.orange),
+                    label: 'Taught',
+                    value: provider.taughtCount.toString(),
+                    icon: Icons.school,
+                    iconColor: AppColors.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  _statCard(
+                    label: 'Learned',
+                    value: provider.learnedCount.toString(),
+                    icon: Icons.book,
+                    iconColor: Colors.green,
+                  ),
                 ],
               ),
               const SizedBox(height: 24),
-              const Text('Quick Actions',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+
+              // ==================== QUICK ACTIONS ====================
+              const Text(
+                'Quick Actions',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 12),
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -147,44 +167,61 @@ class _HomeScreenState extends State<HomeScreen> {
                     spacing: 12,
                     runSpacing: 12,
                     children: [
-                      _actionCard('Edit Profile', Icons.edit, cardWidth, () {
-                        Navigator.push(
+                      // ✅ Edit Profile — safe after await
+                      _actionCard('Edit Profile', Icons.edit, cardWidth, () async {
+                        final auth =
+                        Provider.of<AuthProvider>(context, listen: false);
+                        final userId = auth.user!.id;
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => const EditProfileScreen()),
-                        ).then((_) {
-                          final auth =
-                          Provider.of<AuthProvider>(context, listen: false);
-                          provider.loadProfile(auth.user!.id);
-                        });
+                            builder: (_) => const EditProfileScreen(),
+                          ),
+                        );
+                        if (mounted) provider.loadProfile(userId);
                       }),
-                      _actionCard('Add Skills', Icons.add_circle, cardWidth, () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const AddSkillScreen()),
-                        ).then((_) {
-                          final auth =
-                          Provider.of<AuthProvider>(context, listen: false);
-                          provider.loadProfile(auth.user!.id);
-                        });
-                      }),
+
+                      // ✅ Add Skills — safe after await
+                      _actionCard('Add Skills', Icons.add_circle, cardWidth,
+                              () async {
+                            final auth =
+                            Provider.of<AuthProvider>(context, listen: false);
+                            final userId = auth.user!.id;
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const AddSkillScreen(),
+                              ),
+                            );
+                            if (mounted) provider.loadProfile(userId);
+                          }),
+
                       _actionCard('Find Students', Icons.search, cardWidth, () {
                         setState(() => _selectedIndex = 2);
                       }),
-                      _actionCard('My Meetings', Icons.video_call, cardWidth, () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Meetings - Coming Soon')),
-                        );
-                      }),
+
+                      _actionCard('My Meetings', Icons.video_call, cardWidth,
+                              () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Meetings - Coming Soon'),
+                              ),
+                            );
+                          }),
+
                       _actionCard('Reviews', Icons.star, cardWidth, () {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Reviews - Coming Soon')),
+                          const SnackBar(
+                            content: Text('Reviews - Coming Soon'),
+                          ),
                         );
                       }),
+
                       _actionCard('Requests', Icons.mail, cardWidth, () {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Requests - Coming Soon')),
+                          const SnackBar(
+                            content: Text('Requests - Coming Soon'),
+                          ),
                         );
                       }),
                     ],
@@ -198,45 +235,77 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ==================== PILL ====================
   Widget _pill(String text) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
     decoration: BoxDecoration(
       color: Colors.white.withOpacity(0.2),
       borderRadius: BorderRadius.circular(12),
     ),
-    child: Text(text,
-        style: TextStyle(
-            color: Colors.white.withOpacity(0.9), fontSize: 14)),
+    child: Text(
+      text,
+      style: TextStyle(
+        color: Colors.white.withOpacity(0.9),
+        fontSize: 14,
+      ),
+    ),
   );
 
-  Widget _statCard(String label, String value, IconData icon,
-      {Color? iconColor}) {
+  // ==================== STAT CARD (FIXED HEIGHT) ====================
+  Widget _statCard({
+    required String label,
+    required String value,
+    required IconData icon,
+    Color? iconColor,
+  }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(16),
+        height: 110,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.textHint.withOpacity(0.2)),
         ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: iconColor ?? AppColors.primary, size: 28),
-            const SizedBox(height: 8),
-            Text(value,
+            Icon(icon, color: iconColor ?? AppColors.primary, size: 26),
+            const SizedBox(height: 6),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                maxLines: 1,
                 style: const TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.bold)),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 12, color: AppColors.textSecondary)),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
+  // ==================== ACTION CARD ====================
   Widget _actionCard(
-      String title, IconData icon, double width, VoidCallback onTap) {
+      String title,
+      IconData icon,
+      double width,
+      VoidCallback onTap,
+      ) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -259,8 +328,10 @@ class _HomeScreenState extends State<HomeScreen> {
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style:
-              const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),

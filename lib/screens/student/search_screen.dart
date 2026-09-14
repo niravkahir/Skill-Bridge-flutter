@@ -39,18 +39,15 @@ class _SearchScreenState extends State<SearchScreen> {
     try {
       List<Map<String, dynamic>> results;
 
-      // If a skill is selected → filter by skill
       if (_selectedSkillId != null && _selectedSkillId!.isNotEmpty) {
         results = await _firestore.searchStudentsBySkill(
           skillId: _selectedSkillId!,
           currentUserId: currentUserId,
         );
       } else {
-        // Otherwise → get all students
         results = await _firestore.getAllStudents(currentUserId);
       }
 
-      // Apply college filter on top (if user typed one)
       if (_selectedCollege != null && _selectedCollege!.isNotEmpty) {
         results = results
             .where((s) => (s['college'] ?? '')
@@ -77,7 +74,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
     final content = Column(
       children: [
-        // Filters
+        // ==================== FILTERS ====================
         Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -122,18 +119,33 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
               ),
               const SizedBox(height: 12),
+
+              // ✅ FIXED: Search Students button — matches Edit Profile style
               SizedBox(
                 width: double.infinity,
-                height: 50,
+                height: 54,
                 child: ElevatedButton.icon(
                   onPressed: _isLoading ? null : _search,
-                  icon: const Icon(Icons.search),
-                  label:
-                  Text(_isLoading ? 'Searching...' : 'Search Students'),
+                  icon: const Icon(
+                    Icons.search,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                  label: Text(
+                    _isLoading ? 'Searching...' : 'Search Students',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
+                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                    foregroundColor: AppColors.primary,
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
@@ -141,6 +153,7 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         ),
 
+        // ==================== RESULTS ====================
         Expanded(
           child: _results.isEmpty
               ? Center(
@@ -217,7 +230,6 @@ class _SearchScreenState extends State<SearchScreen> {
           );
 
           try {
-            // Fetch skills for this user
             final allSkills =
             await _firestore.getUserSkillsWithDetails(s['user_id']);
 
@@ -227,7 +239,7 @@ class _SearchScreenState extends State<SearchScreen> {
             allSkills.where((sk) => sk['type'] == 'learn').toList();
 
             if (!context.mounted) return;
-            Navigator.pop(context); // Close loader
+            Navigator.pop(context);
 
             Navigator.push(
               context,

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../config/app_colors.dart';
+import '../../services/firestore_service.dart';
 import '../../widgets/profile/profile_picture.dart';
-import '../../widgets/profile/verification_badge.dart';
 import '../../widgets/profile/skill_chip.dart';
 
-class OtherProfileScreen extends StatelessWidget {
+class OtherProfileScreen extends StatefulWidget {
   final Map<String, dynamic> studentData;
   final List<Map<String, dynamic>> teachSkills;
   final List<Map<String, dynamic>> learnSkills;
@@ -17,15 +17,59 @@ class OtherProfileScreen extends StatelessWidget {
   });
 
   @override
+  State<OtherProfileScreen> createState() => _OtherProfileScreenState();
+}
+
+class _OtherProfileScreenState extends State<OtherProfileScreen> {
+  final FirestoreService _firestore = FirestoreService();
+
+  // Stats
+  double _averageRating = 0.0;
+  int _reviewCount = 0;
+  int _taughtCount = 0;
+  int _learnedCount = 0;
+
+  bool _isLoadingStats = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    final userId = widget.studentData['user_id'];
+    if (userId == null) {
+      setState(() => _isLoadingStats = false);
+      return;
+    }
+
+    final stats = await _firestore.getUserStats(userId);
+    if (!mounted) return;
+
+    setState(() {
+      _averageRating = (stats['average_rating'] ?? 0.0) as double;
+      _reviewCount = (stats['review_count'] ?? 0) as int;
+      _taughtCount = (stats['taught_count'] ?? 0) as int;
+      _learnedCount = (stats['learned_count'] ?? 0) as int;
+      _isLoadingStats = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final s = widget.studentData;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(studentData['full_name'] ?? 'Student Profile'),
+        title: Text(s['full_name'] ?? 'Student Profile'),
         actions: [
           IconButton(
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Send Request - Coming Soon')),
+                const SnackBar(
+                  content: Text('Send Request - Coming Soon'),
+                ),
               );
             },
             icon: const Icon(Icons.send),
@@ -36,34 +80,63 @@ class OtherProfileScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Profile Header
+            // ==================== PROFILE HEADER ====================
             Center(
               child: Column(
                 children: [
                   ProfilePicture(
-                    imageUrl: studentData['profile_image'],
+                    imageUrl: s['profile_image'],
                     size: 120,
                   ),
                   const SizedBox(height: 16),
+
+                  // Name + rating badge
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        studentData['full_name'] ?? 'Unknown',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
+                      Flexible(
+                        child: Text(
+                          s['full_name'] ?? 'Unknown',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      VerificationBadge(
-                        status: studentData['verification_status'] ?? 'pending',
-                      ),
+                      if (_reviewCount > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.amber),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.star,
+                                  color: Colors.amber, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${_averageRating.toStringAsFixed(1)} ($_reviewCount)',
+                                style: const TextStyle(
+                                  color: Colors.orange,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    studentData['email'] ?? '',
+                    s['email'] ?? '',
                     style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 14,
@@ -74,58 +147,156 @@ class OtherProfileScreen extends StatelessWidget {
               ),
             ),
 
-            // Info Cards
-            _buildInfoCard(
+            // ==================== STATS ROW ====================
+            _isLoadingStats
+                ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(child: CircularProgressIndicator()),
+            )
+                : Row(
+              children: [
+                _statCard(
+                  label: 'Rating',
+                  value: _reviewCount > 0
+                      ? '${_averageRating.toStringAsFixed(1)} ★'
+                      : '—',
+                  icon: Icons.star,
+                  iconColor: Colors.amber,
+                ),
+                const SizedBox(width: 12),
+                _statCard(
+                  label: 'Taught',
+                  value: _taughtCount.toString(),
+                  icon: Icons.school,
+                  iconColor: AppColors.primary,
+                ),
+                const SizedBox(width: 12),
+                _statCard(
+                  label: 'Learned',
+                  value: _learnedCount.toString(),
+                  icon: Icons.book,
+                  iconColor: Colors.green,
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // ==================== INFO CARDS ====================
+            _infoCard(
               icon: Icons.school,
               label: 'College',
-              value: studentData['college'] ?? 'Not set',
+              value: s['college'] ?? 'Not set',
             ),
             const SizedBox(height: 12),
-            _buildInfoCard(
+            _infoCard(
               icon: Icons.grade,
               label: 'Semester',
-              value: 'Semester ${studentData['semester'] ?? 1}',
+              value: 'Semester ${s['semester'] ?? 1}',
             ),
             const SizedBox(height: 12),
-            _buildInfoCard(
+            _infoCard(
               icon: Icons.info,
               label: 'About',
-              value: studentData['bio'] ?? 'No bio set',
+              value: s['bio'] ?? 'No bio set',
             ),
             const SizedBox(height: 24),
 
-            // Skills
-            _buildSkillSection(
+            // ==================== SKILLS ====================
+            _skillSection(
               title: '🛠️ Skills They Can Teach',
-              skills: teachSkills,
+              skills: widget.teachSkills,
             ),
             const SizedBox(height: 16),
-            _buildSkillSection(
+            _skillSection(
               title: '📚 Skills They Want to Learn',
-              skills: learnSkills,
+              skills: widget.learnSkills,
             ),
             const SizedBox(height: 24),
 
-            // Request Button
+            // ==================== REQUEST BUTTON ====================
+            // ✅ FIXED: Matches Edit Profile style
             SizedBox(
               width: double.infinity,
+              height: 54,
               child: ElevatedButton.icon(
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Learning request sent!'),
+                      content: Text('Learning request - Coming Soon'),
                       backgroundColor: AppColors.success,
                     ),
                   );
                 },
-                icon: const Icon(Icons.send),
-                label: const Text('Request Learning Session'),
+                icon: const Icon(
+                  Icons.send,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+                label: const Text(
+                  'Request Learning Session',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                ),
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: AppColors.primary.withOpacity(0.1),
+                  foregroundColor: AppColors.primary,
+                  elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==================== STAT CARD ====================
+  Widget _statCard({
+    required String label,
+    required String value,
+    required IconData icon,
+    Color? iconColor,
+  }) {
+    return Expanded(
+      child: Container(
+        height: 110,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.textHint.withOpacity(0.2)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: iconColor ?? AppColors.primary, size: 26),
+            const SizedBox(height: 6),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
               ),
             ),
           ],
@@ -134,7 +305,8 @@ class OtherProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoCard({
+  // ==================== INFO CARD ====================
+  Widget _infoCard({
     required IconData icon,
     required String label,
     required String value,
@@ -144,9 +316,7 @@ class OtherProfileScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.textHint.withOpacity(0.2),
-        ),
+        border: Border.all(color: AppColors.textHint.withOpacity(0.2)),
       ),
       child: Row(
         children: [
@@ -186,7 +356,8 @@ class OtherProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSkillSection({
+  // ==================== SKILL SECTION ====================
+  Widget _skillSection({
     required String title,
     required List<Map<String, dynamic>> skills,
   }) {
@@ -195,9 +366,7 @@ class OtherProfileScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.textHint.withOpacity(0.2),
-        ),
+        border: Border.all(color: AppColors.textHint.withOpacity(0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
