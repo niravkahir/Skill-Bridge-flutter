@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/profile_model.dart';
 import '../models/user_model.dart';
 import '../models/user_skill_model.dart';
+import '../models/learning_request_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -68,9 +69,8 @@ class FirestoreService {
     }
   }
 
-  // ==================== SKILL OPERATIONS (User) ====================
+  // ==================== SKILL OPERATIONS ====================
 
-  // Get only ACTIVE skills (for normal users) - SORTED IN DART (no index needed)
   Future<List<Map<String, dynamic>>> getAllSkills() async {
     try {
       final snapshot = await _firestore
@@ -78,7 +78,6 @@ class FirestoreService {
           .where('status', isEqualTo: 'active')
           .get();
 
-      // Sort in Dart to avoid needing a composite index
       final docs = snapshot.docs.toList();
       docs.sort((a, b) => (a.data()['name'] ?? '')
           .toString()
@@ -268,7 +267,6 @@ class FirestoreService {
     required String currentUserId,
   }) async {
     try {
-      // Step 1: Find all user_skills where skill_id matches and type = 'teach'
       final skillDocs = await _firestore
           .collection('user_skills')
           .where('skill_id', isEqualTo: skillId)
@@ -277,7 +275,6 @@ class FirestoreService {
 
       if (skillDocs.docs.isEmpty) return [];
 
-      // Step 2: Collect user IDs (max 10 for whereIn)
       final userIds = skillDocs.docs
           .map((d) => d.data()['user_id'] as String)
           .where((id) => id != currentUserId)
@@ -287,13 +284,11 @@ class FirestoreService {
 
       if (userIds.isEmpty) return [];
 
-      // Step 3: Get their profiles
       final profileDocs = await _firestore
           .collection('profiles')
           .where('user_id', whereIn: userIds)
           .get();
 
-      // Step 4: Get their emails
       final userDocs = await _firestore
           .collection('users')
           .where(FieldPath.documentId, whereIn: userIds)
@@ -304,7 +299,6 @@ class FirestoreService {
         emailMap[d.id] = (d.data()['email'] ?? '') as String;
       }
 
-      // Step 5: Build result list
       return profileDocs.docs.map((d) {
         final data = d.data();
         return {
@@ -326,7 +320,6 @@ class FirestoreService {
 
   // ==================== ADMIN SKILL MANAGEMENT ====================
 
-  // Add new skill (admin only)
   Future<void> addSkill({
     required String name,
     required String category,
@@ -343,7 +336,6 @@ class FirestoreService {
     }
   }
 
-  // Update existing skill (admin only)
   Future<void> updateSkill({
     required String skillId,
     required String name,
@@ -361,7 +353,6 @@ class FirestoreService {
     }
   }
 
-  // Delete skill (admin only)
   Future<void> deleteSkill(String skillId) async {
     try {
       await _firestore.collection('skills').doc(skillId).delete();
@@ -370,12 +361,10 @@ class FirestoreService {
     }
   }
 
-  // Get ALL skills including inactive (for admin) - SORTED IN DART
   Future<List<Map<String, dynamic>>> getAllSkillsForAdmin() async {
     try {
       final snapshot = await _firestore.collection('skills').get();
 
-      // Sort in Dart to avoid needing a composite index
       final docs = snapshot.docs.toList();
       docs.sort((a, b) => (a.data()['name'] ?? '')
           .toString()
@@ -395,7 +384,6 @@ class FirestoreService {
 
   // ==================== USER STATS ====================
 
-  /// Get average rating for a user (from reviews collection)
   Future<double> getAverageRating(String userId) async {
     try {
       final snapshot = await _firestore
@@ -415,7 +403,6 @@ class FirestoreService {
     }
   }
 
-  /// Count of reviews for a user
   Future<int> getReviewCount(String userId) async {
     try {
       final snapshot = await _firestore
@@ -428,7 +415,6 @@ class FirestoreService {
     }
   }
 
-  /// Count of meetings taught (completed)
   Future<int> getTaughtCount(String userId) async {
     try {
       final snapshot = await _firestore
@@ -442,7 +428,6 @@ class FirestoreService {
     }
   }
 
-  /// Count of meetings learned (completed)
   Future<int> getLearnedCount(String userId) async {
     try {
       final snapshot = await _firestore
@@ -456,7 +441,6 @@ class FirestoreService {
     }
   }
 
-  /// Get pending requests count (incoming)
   Future<int> getIncomingRequestsCount(String userId) async {
     try {
       final snapshot = await _firestore
@@ -470,10 +454,8 @@ class FirestoreService {
     }
   }
 
-  /// Get all stats for any user in one call
   Future<Map<String, dynamic>> getUserStats(String userId) async {
     try {
-      // Average rating
       final reviewsSnap = await _firestore
           .collection('reviews')
           .where('reviewed_user_id', isEqualTo: userId)
@@ -488,14 +470,12 @@ class FirestoreService {
         avgRating = total / reviewsSnap.docs.length;
       }
 
-      // Taught count
       final taughtSnap = await _firestore
           .collection('meetings')
           .where('teacher_id', isEqualTo: userId)
           .where('status', isEqualTo: 'completed')
           .get();
 
-      // Learned count
       final learnedSnap = await _firestore
           .collection('meetings')
           .where('learner_id', isEqualTo: userId)
@@ -516,6 +496,203 @@ class FirestoreService {
         'taught_count': 0,
         'learned_count': 0,
       };
+    }
+  }
+
+  // ==================== LEARNING REQUESTS ====================
+
+  Future<void> sendLearningRequest(LearningRequestModel request) async {
+    try {
+      await _firestore
+          .collection('learning_requests')
+          .doc(request.id)
+          .set(request.toFirestore());
+    } catch (e) {
+      throw Exception('Failed to send request: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getIncomingRequests(
+      String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('learning_requests')
+          .where('receiver_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'pending')
+          .get();
+
+      final List<Map<String, dynamic>> results = [];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final senderId = data['sender_id'] as String? ?? '';
+        final skillId = data['skill_id'] as String? ?? '';
+
+        final senderProfile =
+        await _firestore.collection('profiles').doc(senderId).get();
+        final skillDoc =
+        await _firestore.collection('skills').doc(skillId).get();
+
+        results.add({
+          'id': doc.id,
+          'sender_id': senderId,
+          'receiver_id': data['receiver_id'],
+          'skill_id': skillId,
+          'skill_name': skillDoc.data()?['name'] ?? 'Unknown Skill',
+          'message': data['message'] ?? '',
+          'preferred_time': data['preferred_time'] ?? '',
+          'status': data['status'] ?? 'pending',
+          'created_at': data['created_at'],
+          'sender_name': senderProfile.data()?['full_name'] ?? 'Unknown',
+          'sender_college': senderProfile.data()?['college'] ?? '',
+          'sender_semester': senderProfile.data()?['semester'] ?? 1,
+          'sender_image': senderProfile.data()?['profile_image'] ?? '',
+        });
+      }
+
+      results.sort((a, b) {
+        final aTime = (a['created_at'] as Timestamp).millisecondsSinceEpoch;
+        final bTime = (b['created_at'] as Timestamp).millisecondsSinceEpoch;
+        return bTime.compareTo(aTime);
+      });
+
+      return results;
+    } catch (e) {
+      throw Exception('Failed to load incoming requests: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getSentRequests(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('learning_requests')
+          .where('sender_id', isEqualTo: userId)
+          .get();
+
+      final List<Map<String, dynamic>> results = [];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final receiverId = data['receiver_id'] as String? ?? '';
+        final skillId = data['skill_id'] as String? ?? '';
+
+        final receiverProfile =
+        await _firestore.collection('profiles').doc(receiverId).get();
+        final skillDoc =
+        await _firestore.collection('skills').doc(skillId).get();
+
+        results.add({
+          'id': doc.id,
+          'sender_id': data['sender_id'],
+          'receiver_id': receiverId,
+          'skill_id': skillId,
+          'skill_name': skillDoc.data()?['name'] ?? 'Unknown Skill',
+          'message': data['message'] ?? '',
+          'preferred_time': data['preferred_time'] ?? '',
+          'status': data['status'] ?? 'pending',
+          'created_at': data['created_at'],
+          'receiver_name': receiverProfile.data()?['full_name'] ?? 'Unknown',
+          'receiver_college': receiverProfile.data()?['college'] ?? '',
+          'receiver_semester': receiverProfile.data()?['semester'] ?? 1,
+          'receiver_image': receiverProfile.data()?['profile_image'] ?? '',
+        });
+      }
+
+      results.sort((a, b) {
+        final aTime = (a['created_at'] as Timestamp).millisecondsSinceEpoch;
+        final bTime = (b['created_at'] as Timestamp).millisecondsSinceEpoch;
+        return bTime.compareTo(aTime);
+      });
+
+      return results;
+    } catch (e) {
+      throw Exception('Failed to load sent requests: $e');
+    }
+  }
+
+  Future<void> updateRequestStatus({
+    required String requestId,
+    required String status,
+  }) async {
+    try {
+      await _firestore
+          .collection('learning_requests')
+          .doc(requestId)
+          .update({
+        'status': status,
+        'responded_at': Timestamp.now(),
+      });
+    } catch (e) {
+      throw Exception('Failed to update request: $e');
+    }
+  }
+
+  Future<void> deleteRequest(String requestId) async {
+    try {
+      await _firestore
+          .collection('learning_requests')
+          .doc(requestId)
+          .delete();
+    } catch (e) {
+      throw Exception('Failed to delete request: $e');
+    }
+  }
+
+  /// Get request history (accepted + rejected incoming requests)
+  Future<List<Map<String, dynamic>>> getRequestHistory(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('learning_requests')
+          .where('receiver_id', isEqualTo: userId)
+          .get();
+
+      final List<Map<String, dynamic>> results = [];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final status = data['status'] ?? 'pending';
+
+        if (status == 'pending') continue;
+
+        final senderId = data['sender_id'] as String? ?? '';
+        final skillId = data['skill_id'] as String? ?? '';
+
+        final senderProfile =
+        await _firestore.collection('profiles').doc(senderId).get();
+        final skillDoc =
+        await _firestore.collection('skills').doc(skillId).get();
+
+        results.add({
+          'id': doc.id,
+          'sender_id': senderId,
+          'receiver_id': data['receiver_id'],
+          'skill_id': skillId,
+          'skill_name': skillDoc.data()?['name'] ?? 'Unknown Skill',
+          'message': data['message'] ?? '',
+          'preferred_time': data['preferred_time'] ?? '',
+          'status': status,
+          'created_at': data['created_at'],
+          'responded_at': data['responded_at'],
+          'sender_name': senderProfile.data()?['full_name'] ?? 'Unknown',
+          'sender_college': senderProfile.data()?['college'] ?? '',
+          'sender_semester': senderProfile.data()?['semester'] ?? 1,
+          'sender_image': senderProfile.data()?['profile_image'] ?? '',
+        });
+      }
+
+      results.sort((a, b) {
+        final aTime = a['responded_at'] != null
+            ? (a['responded_at'] as Timestamp).millisecondsSinceEpoch
+            : 0;
+        final bTime = b['responded_at'] != null
+            ? (b['responded_at'] as Timestamp).millisecondsSinceEpoch
+            : 0;
+        return bTime.compareTo(aTime);
+      });
+
+      return results;
+    } catch (e) {
+      throw Exception('Failed to load request history: $e');
     }
   }
 }

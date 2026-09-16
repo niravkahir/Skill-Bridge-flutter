@@ -3,6 +3,7 @@ import '../../config/app_colors.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/profile/profile_picture.dart';
 import '../../widgets/profile/skill_chip.dart';
+import 'send_request_screen.dart';
 
 class OtherProfileScreen extends StatefulWidget {
   final Map<String, dynamic> studentData;
@@ -220,14 +221,16 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
               height: 54,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Learning request - Coming Soon'),
-                      backgroundColor: AppColors.success,
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SendRequestScreen(
+                        studentData: widget.studentData,
+                        teachSkills: widget.teachSkills,
+                      ),
                     ),
                   );
-                },
-                icon: const Icon(
+                },                icon: const Icon(
                   Icons.send,
                   color: AppColors.primary,
                   size: 20,

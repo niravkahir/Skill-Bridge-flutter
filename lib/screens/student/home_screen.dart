@@ -8,6 +8,7 @@ import '../../screens/student/profile_screen.dart';
 import '../../screens/student/edit_profile_screen.dart';
 import '../../screens/student/add_skill_screen.dart';
 import '../../screens/student/search_screen.dart';
+import '../../screens/student/requests_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,22 +19,58 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  bool _initialLoadDone = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final auth = Provider.of<AuthProvider>(context, listen: false);
-      final profile = Provider.of<ProfileProvider>(context, listen: false);
-      if (auth.user != null) profile.loadProfile(auth.user!.id);
-    });
+    _init();
+  }
+
+  Future<void> _init() async {
+    // Wait a moment for Firebase to restore session on web
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final profile = Provider.of<ProfileProvider>(context, listen: false);
+
+    // If user is logged in → load profile
+    if (auth.user != null) {
+      await profile.loadProfile(auth.user!.id);
+    }
+
+    if (mounted) {
+      setState(() => _initialLoadDone = true);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
-    if (!auth.isAuthenticated) return const SizedBox.shrink();
 
+    // ✅ Show loading while checking auth
+    if (!_initialLoadDone) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // ✅ If NOT authenticated → redirect to login
+    if (!auth.isAuthenticated) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/login',
+              (route) => false,
+        );
+      });
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // ✅ Authenticated → show home
     return Scaffold(
       appBar: ProfessionalAppBar(
         currentTab: _selectedIndex,
@@ -83,7 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ==================== WELCOME CARD ====================
+              // Welcome card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -94,22 +131,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Welcome back,',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: 16,
-                      ),
-                    ),
+                    Text('Welcome back,',
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.8),
+                            fontSize: 16)),
                     const SizedBox(height: 4),
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    Text(name,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -124,8 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 24),
 
-              // ==================== STATS ROW ====================
-              // ✅ Rating | Taught | Learned (replaces Pending)
+              // Stats row
               Row(
                 children: [
                   _statCard(
@@ -154,11 +184,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 24),
 
-              // ==================== QUICK ACTIONS ====================
-              const Text(
-                'Quick Actions',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+              // Quick actions
+              const Text('Quick Actions',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -167,7 +195,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     spacing: 12,
                     runSpacing: 12,
                     children: [
-                      // ✅ Edit Profile — safe after await
                       _actionCard('Edit Profile', Icons.edit, cardWidth, () async {
                         final auth =
                         Provider.of<AuthProvider>(context, listen: false);
@@ -175,13 +202,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const EditProfileScreen(),
-                          ),
+                              builder: (_) => const EditProfileScreen()),
                         );
                         if (mounted) provider.loadProfile(userId);
                       }),
-
-                      // ✅ Add Skills — safe after await
                       _actionCard('Add Skills', Icons.add_circle, cardWidth,
                               () async {
                             final auth =
@@ -190,38 +214,31 @@ class _HomeScreenState extends State<HomeScreen> {
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const AddSkillScreen(),
-                              ),
+                                  builder: (_) => const AddSkillScreen()),
                             );
                             if (mounted) provider.loadProfile(userId);
                           }),
-
                       _actionCard('Find Students', Icons.search, cardWidth, () {
                         setState(() => _selectedIndex = 2);
                       }),
-
                       _actionCard('My Meetings', Icons.video_call, cardWidth,
                               () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Meetings - Coming Soon'),
-                              ),
+                                  content: Text('Meetings - Coming Soon')),
                             );
                           }),
-
                       _actionCard('Reviews', Icons.star, cardWidth, () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Reviews - Coming Soon'),
-                          ),
+                              content: Text('Reviews - Coming Soon')),
                         );
                       }),
-
                       _actionCard('Requests', Icons.mail, cardWidth, () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Requests - Coming Soon'),
-                          ),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const RequestsScreen()),
                         );
                       }),
                     ],
@@ -235,23 +252,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ==================== PILL ====================
   Widget _pill(String text) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
     decoration: BoxDecoration(
       color: Colors.white.withOpacity(0.2),
       borderRadius: BorderRadius.circular(12),
     ),
-    child: Text(
-      text,
-      style: TextStyle(
-        color: Colors.white.withOpacity(0.9),
-        fontSize: 14,
-      ),
-    ),
+    child: Text(text,
+        style: TextStyle(
+            color: Colors.white.withOpacity(0.9), fontSize: 14)),
   );
 
-  // ==================== STAT CARD (FIXED HEIGHT) ====================
   Widget _statCard({
     required String label,
     required String value,
@@ -274,38 +285,25 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 6),
             FittedBox(
               fit: BoxFit.scaleDown,
-              child: Text(
-                value,
-                maxLines: 1,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              child: Text(value,
+                  maxLines: 1,
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold)),
             ),
             const SizedBox(height: 2),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
-            ),
+            Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary)),
           ],
         ),
       ),
     );
   }
 
-  // ==================== ACTION CARD ====================
   Widget _actionCard(
-      String title,
-      IconData icon,
-      double width,
-      VoidCallback onTap,
-      ) {
+      String title, IconData icon, double width, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -328,10 +326,8 @@ class _HomeScreenState extends State<HomeScreen> {
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
+              style:
+              const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
             ),
           ],
         ),
