@@ -7,6 +7,7 @@ import 'providers/profile_provider.dart';
 import 'providers/skill_provider.dart';
 import 'providers/request_provider.dart';
 import 'providers/meeting_provider.dart';
+import 'providers/review_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/student/home_screen.dart';
@@ -40,6 +41,7 @@ class SkillBridgeApp extends StatelessWidget {
             ChangeNotifierProvider(create: (_) => SkillProvider()),
             ChangeNotifierProvider(create: (_) => RequestProvider()),
             ChangeNotifierProvider(create: (_) => MeetingProvider()),
+            ChangeNotifierProvider(create: (_) => ReviewProvider()),
           ],
           child: child!,
         );

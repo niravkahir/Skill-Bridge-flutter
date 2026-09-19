@@ -9,7 +9,6 @@ build/
 .dart_tool/
 .pub-cache/
 .pub/
-*.lock
 .flutter-plugins-dependencies
 
 # IDE

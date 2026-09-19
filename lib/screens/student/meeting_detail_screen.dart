@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_colors.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/meeting_provider.dart';
+import '../../providers/profile_provider.dart';
+import '../../providers/review_provider.dart';
 import '../../widgets/profile/profile_picture.dart';
+import 'write_review_screen.dart';
 
 class MeetingDetailScreen extends StatefulWidget {
   final String meetingId;
@@ -21,8 +25,61 @@ class MeetingDetailScreen extends StatefulWidget {
 
 class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
   bool _isLoading = false;
+  bool _hasReviewed = false;
+  bool _checkingReview = true;
 
-  // ==================== JOIN MEETING ====================
+  @override
+  void initState() {
+    super.initState();
+    _checkIfReviewed();
+  }
+
+  Future<void> _checkIfReviewed() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final provider = Provider.of<ReviewProvider>(context, listen: false);
+    final hasReviewed = await provider.hasReviewed(
+      reviewerId: auth.user!.id,
+      meetingId: widget.meetingId,
+    );
+    if (mounted) {
+      setState(() {
+        _hasReviewed = hasReviewed;
+        _checkingReview = false;
+      });
+    }
+  }
+
+  Future<void> _openWriteReview() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WriteReviewScreen(
+          meetingData: {
+            'id': widget.meetingId,
+            'other_user_id': widget.meetingData['other_user_id'],
+            'other_user_name': widget.meetingData['other_user_name'],
+            'other_user_image': widget.meetingData['other_user_image'],
+            'other_user_college': widget.meetingData['other_user_college'],
+            'other_user_semester': widget.meetingData['other_user_semester'],
+          },
+        ),
+      ),
+    );
+
+    if (result == 'submitted') {
+      setState(() => _hasReviewed = true);
+
+      // ✅ Reload profile stats after review
+      if (!mounted) return;
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final profileProvider =
+      Provider.of<ProfileProvider>(context, listen: false);
+      if (auth.user != null) {
+        await profileProvider.loadProfile(auth.user!.id);
+      }
+    }
+  }
+
   Future<void> _joinMeeting() async {
     final m = widget.meetingData;
     final isTeacher = m['is_teacher'] == true;
@@ -57,7 +114,6 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
     }
   }
 
-  // ==================== CANCEL MEETING ====================
   Future<void> _cancelMeeting() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -96,8 +152,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-              'Meeting cancelled — the other person will see the update'),
+          content: Text('Meeting cancelled'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -112,7 +167,6 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
     }
   }
 
-  // ==================== COMPLETE MEETING ====================
   Future<void> _completeMeeting() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -155,7 +209,9 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
           backgroundColor: AppColors.success,
         ),
       );
-      Navigator.pop(context, 'completed');
+      setState(() {
+        widget.meetingData['status'] = 'completed';
+      });
     }
   }
 
@@ -186,7 +242,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ============ STATUS BANNER ============
+                // Status banner
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
@@ -228,7 +284,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // ============ OTHER USER ============
+                // Other user card
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -292,7 +348,6 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // ============ DETAILS ============
                 _detailCard(
                   icon: Icons.school,
                   label: 'Skill',
@@ -319,7 +374,6 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                   value: m['topic'] ?? 'Session',
                 ),
 
-                // ============ ZOOM INFO ============
                 if (status == 'scheduled') ...[
                   const SizedBox(height: 24),
                   Container(
@@ -362,7 +416,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
 
                 const SizedBox(height: 24),
 
-                // ============ ACTION BUTTONS ============
+                // Action buttons (scheduled)
                 if (status == 'scheduled') ...[
                   SizedBox(
                     width: double.infinity,
@@ -440,7 +494,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                   ),
                 ],
 
-                // ============ COMPLETED BANNER ============
+                // Completed → Review CTA
                 if (status == 'completed') ...[
                   const SizedBox(height: 24),
                   Container(
@@ -452,12 +506,12 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                       border: Border.all(
                           color: AppColors.success.withOpacity(0.3)),
                     ),
-                    child: const Column(
+                    child: Column(
                       children: [
-                        Icon(Icons.check_circle,
+                        const Icon(Icons.check_circle,
                             color: AppColors.success, size: 40),
-                        SizedBox(height: 8),
-                        Text(
+                        const SizedBox(height: 8),
+                        const Text(
                           'Session Completed! 🎉',
                           style: TextStyle(
                             fontSize: 16,
@@ -465,9 +519,99 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                             color: AppColors.success,
                           ),
                         ),
+                        const SizedBox(height: 16),
+
+                        if (_checkingReview)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: CircularProgressIndicator(),
+                          )
+                        else if (_hasReviewed)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment:
+                              MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.check_circle,
+                                    color: AppColors.primary,
+                                    size: 20),
+                                SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    'You have already reviewed this meeting',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: ElevatedButton.icon(
+                              onPressed: _openWriteReview,
+                              icon: const Icon(Icons.star,
+                                  color: Colors.white, size: 22),
+                              label: const Text(
+                                'Leave a Review',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                  BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                // Cancelled
+                if (status == 'cancelled') ...[
+                  const SizedBox(height: 24),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: AppColors.error.withOpacity(0.3)),
+                    ),
+                    child: const Column(
+                      children: [
+                        Icon(Icons.cancel,
+                            color: AppColors.error, size: 40),
+                        SizedBox(height: 8),
+                        Text(
+                          'Meeting Cancelled',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.error,
+                          ),
+                        ),
                         SizedBox(height: 4),
                         Text(
-                          'Feedback & review coming soon',
+                          'This meeting is no longer active',
                           style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,

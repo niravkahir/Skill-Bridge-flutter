@@ -5,10 +5,10 @@ import '../../providers/auth_provider.dart';
 import '../../providers/profile_provider.dart';
 import '../../widgets/common/app_bar.dart';
 import '../../widgets/profile/profile_picture.dart';
-import '../../widgets/profile/verification_badge.dart';
 import '../../widgets/profile/skill_chip.dart';
 import '../../widgets/profile/profile_info_card.dart';
 import 'edit_profile_screen.dart';
+import 'reviews_list_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   final bool showAppBar;
@@ -61,7 +61,7 @@ class ProfileScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Profile Picture and Name
+          // ==================== PROFILE HEADER ====================
           Center(
             child: Column(
               children: [
@@ -70,28 +70,29 @@ class ProfileScreen extends StatelessWidget {
                   size: 120,
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(profile.fullName,
-                        style: const TextStyle(
-                            fontSize: 24, fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 8),
-                    VerificationBadge(status: profile.verificationStatus),
-                  ],
+
+                // ✅ Name only — no Pending badge
+                Text(
+                  profile.fullName,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   profile.email ?? authProvider.user?.email ?? 'No email',
                   style: TextStyle(
-                      color: AppColors.textSecondary, fontSize: 14),
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                  ),
                 ),
                 const SizedBox(height: 16),
               ],
             ),
           ),
 
-          // Info Cards
+          // ==================== INFO CARDS ====================
           ProfileInfoCard(
             icon: Icons.school,
             label: 'College',
@@ -105,13 +106,14 @@ class ProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // About
+          // About Me
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.textHint.withOpacity(0.2)),
+              border:
+              Border.all(color: AppColors.textHint.withOpacity(0.2)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,7 +148,7 @@ class ProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // Skills
+          // ==================== SKILLS ====================
           _skillSection(
             title: '🛠️ Skills I Can Teach',
             skills: profileProvider.teachSkillsWithDetails,
@@ -166,7 +168,43 @@ class ProfileScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // ✅ FIXED: Edit Profile — no stale context
+          // ==================== VIEW REVIEWS BUTTON ====================
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ReviewsListScreen(
+                      userId: authProvider.user!.id,
+                      userName: profile.fullName,
+                      showAsOwner: true,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.star, color: Colors.amber),
+              label: Text(
+                'View My Reviews',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: const BorderSide(color: AppColors.primary),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // ==================== EDIT PROFILE BUTTON ====================
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(

@@ -10,6 +10,7 @@ import '../../screens/student/add_skill_screen.dart';
 import '../../screens/student/search_screen.dart';
 import '../../screens/student/requests_screen.dart';
 import '../../screens/student/meetings_screen.dart';
+import '../../screens/student/reviews_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -29,14 +30,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _init() async {
-    // Wait a moment for Firebase to restore session on web
     await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
 
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final profile = Provider.of<ProfileProvider>(context, listen: false);
 
-    // If user is logged in → load profile
     if (auth.user != null) {
       await profile.loadProfile(auth.user!.id);
     }
@@ -50,14 +49,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context);
 
-    // ✅ Show loading while checking auth
     if (!_initialLoadDone) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
-    // ✅ If NOT authenticated → redirect to login
     if (!auth.isAuthenticated) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.pushNamedAndRemoveUntil(
@@ -71,7 +68,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // ✅ Authenticated → show home
     return Scaffold(
       appBar: ProfessionalAppBar(
         currentTab: _selectedIndex,
@@ -156,18 +152,33 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Stats row
+              // ============ RATINGS ROW ============
               Row(
                 children: [
                   _statCard(
-                    label: 'Rating',
-                    value: provider.reviewCount > 0
-                        ? '${provider.averageRating.toStringAsFixed(1)} ★'
+                    label: 'Teaching',
+                    value: provider.teachingReviewCount > 0
+                        ? '${provider.teachingRating.toStringAsFixed(1)} ★'
                         : '—',
-                    icon: Icons.star,
+                    icon: Icons.school,
                     iconColor: Colors.amber,
                   ),
                   const SizedBox(width: 12),
+                  _statCard(
+                    label: 'Learning',
+                    value: provider.learningReviewCount > 0
+                        ? '${provider.learningRating.toStringAsFixed(1)} ★'
+                        : '—',
+                    icon: Icons.book,
+                    iconColor: Colors.orange,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // ============ SESSIONS ROW ============
+              Row(
+                children: [
                   _statCard(
                     label: 'Taught',
                     value: provider.taughtCount.toString(),
@@ -185,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Quick actions
+              // ============ QUICK ACTIONS ============
               const Text('Quick Actions',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
@@ -222,18 +233,26 @@ class _HomeScreenState extends State<HomeScreen> {
                       _actionCard('Find Students', Icons.search, cardWidth, () {
                         setState(() => _selectedIndex = 2);
                       }),
-                      _actionCard('My Meetings', Icons.video_call, cardWidth, () {
+                      _actionCard('My Meetings', Icons.video_call, cardWidth,
+                              () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const MeetingsScreen()),
+                            );
+                          }),
+                      _actionCard('Reviews', Icons.star, cardWidth, () {
+                        final auth =
+                        Provider.of<AuthProvider>(context, listen: false);
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const MeetingsScreen(),
+                            builder: (_) => ReviewsListScreen(
+                              userId: auth.user!.id,
+                              userName: provider.profile?.fullName ?? 'Me',
+                              showAsOwner: true,
+                            ),
                           ),
-                        );
-                      }),
-                      _actionCard('Reviews', Icons.star, cardWidth, () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Reviews - Coming Soon')),
                         );
                       }),
                       _actionCard('Requests', Icons.mail, cardWidth, () {

@@ -4,6 +4,7 @@ import '../models/user_model.dart';
 import '../models/user_skill_model.dart';
 import '../models/learning_request_model.dart';
 import '../models/meeting_model.dart';
+import '../models/review_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -500,6 +501,228 @@ class FirestoreService {
     }
   }
 
+  // ==================== RATING BY ROLE ====================
+
+  Future<Map<String, dynamic>> getTeachingRating(String userId) async {
+    try {
+      final meetingsSnap = await _firestore
+          .collection('meetings')
+          .where('teacher_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'completed')
+          .get();
+
+      if (meetingsSnap.docs.isEmpty) {
+        return {'average': 0.0, 'count': 0};
+      }
+
+      final meetingIds = meetingsSnap.docs.map((d) => d.id).toList();
+
+      final reviewsSnap = await _firestore
+          .collection('reviews')
+          .where('reviewed_user_id', isEqualTo: userId)
+          .get();
+
+      final teachingReviews = reviewsSnap.docs.where((doc) {
+        return meetingIds.contains(doc.data()['meeting_id']);
+      }).toList();
+
+      if (teachingReviews.isEmpty) {
+        return {'average': 0.0, 'count': 0};
+      }
+
+      double total = 0;
+      for (var doc in teachingReviews) {
+        total += (doc.data()['rating'] ?? 0) as int;
+      }
+
+      return {
+        'average': total / teachingReviews.length,
+        'count': teachingReviews.length,
+      };
+    } catch (e) {
+      print('⚠️ getTeachingRating error: $e');
+      return {'average': 0.0, 'count': 0};
+    }
+  }
+
+  Future<Map<String, dynamic>> getLearningRating(String userId) async {
+    try {
+      final meetingsSnap = await _firestore
+          .collection('meetings')
+          .where('learner_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'completed')
+          .get();
+
+      if (meetingsSnap.docs.isEmpty) {
+        return {'average': 0.0, 'count': 0};
+      }
+
+      final meetingIds = meetingsSnap.docs.map((d) => d.id).toList();
+
+      final reviewsSnap = await _firestore
+          .collection('reviews')
+          .where('reviewed_user_id', isEqualTo: userId)
+          .get();
+
+      final learningReviews = reviewsSnap.docs.where((doc) {
+        return meetingIds.contains(doc.data()['meeting_id']);
+      }).toList();
+
+      if (learningReviews.isEmpty) {
+        return {'average': 0.0, 'count': 0};
+      }
+
+      double total = 0;
+      for (var doc in learningReviews) {
+        total += (doc.data()['rating'] ?? 0) as int;
+      }
+
+      return {
+        'average': total / learningReviews.length,
+        'count': learningReviews.length,
+      };
+    } catch (e) {
+      print('⚠️ getLearningRating error: $e');
+      return {'average': 0.0, 'count': 0};
+    }
+  }
+
+  // ==================== SPLIT REVIEWS ====================
+
+  /// Get teaching reviews received (where user was teacher)
+  Future<List<Map<String, dynamic>>> getTeachingReviews(
+      String userId) async {
+    try {
+      final meetingsSnap = await _firestore
+          .collection('meetings')
+          .where('teacher_id', isEqualTo: userId)
+          .get();
+
+      if (meetingsSnap.docs.isEmpty) return [];
+
+      final meetingIds = meetingsSnap.docs.map((d) => d.id).toSet();
+
+      final reviewsSnap = await _firestore
+          .collection('reviews')
+          .where('reviewed_user_id', isEqualTo: userId)
+          .get();
+
+      final teachingReviews = reviewsSnap.docs.where((doc) {
+        return meetingIds.contains(doc.data()['meeting_id']);
+      }).toList();
+
+      if (teachingReviews.isEmpty) return [];
+
+      final List<Map<String, dynamic>> results = [];
+
+      for (var doc in teachingReviews) {
+        final data = doc.data();
+        final reviewerId = data['reviewer_id'] as String? ?? '';
+
+        final reviewerProfile =
+        await _firestore.collection('profiles').doc(reviewerId).get();
+
+        results.add({
+          'id': doc.id,
+          'reviewer_id': reviewerId,
+          'reviewed_user_id': data['reviewed_user_id'] ?? '',
+          'meeting_id': data['meeting_id'] ?? '',
+          'rating': data['rating'] ?? 0,
+          'comment': data['comment'] ?? '',
+          'created_at': data['created_at'],
+          'reviewer_name':
+          reviewerProfile.data()?['full_name'] ?? 'Unknown',
+          'reviewer_image':
+          reviewerProfile.data()?['profile_image'] ?? '',
+          'reviewer_college':
+          reviewerProfile.data()?['college'] ?? '',
+          'reviewer_semester':
+          reviewerProfile.data()?['semester'] ?? 1,
+        });
+      }
+
+      results.sort((a, b) {
+        final aTime =
+            (a['created_at'] as Timestamp).millisecondsSinceEpoch;
+        final bTime =
+            (b['created_at'] as Timestamp).millisecondsSinceEpoch;
+        return bTime.compareTo(aTime);
+      });
+
+      return results;
+    } catch (e) {
+      print('⚠️ getTeachingReviews error: $e');
+      return [];
+    }
+  }
+
+  /// Get learning reviews received (where user was learner)
+  Future<List<Map<String, dynamic>>> getLearningReviews(
+      String userId) async {
+    try {
+      final meetingsSnap = await _firestore
+          .collection('meetings')
+          .where('learner_id', isEqualTo: userId)
+          .get();
+
+      if (meetingsSnap.docs.isEmpty) return [];
+
+      final meetingIds = meetingsSnap.docs.map((d) => d.id).toSet();
+
+      final reviewsSnap = await _firestore
+          .collection('reviews')
+          .where('reviewed_user_id', isEqualTo: userId)
+          .get();
+
+      final learningReviews = reviewsSnap.docs.where((doc) {
+        return meetingIds.contains(doc.data()['meeting_id']);
+      }).toList();
+
+      if (learningReviews.isEmpty) return [];
+
+      final List<Map<String, dynamic>> results = [];
+
+      for (var doc in learningReviews) {
+        final data = doc.data();
+        final reviewerId = data['reviewer_id'] as String? ?? '';
+
+        final reviewerProfile =
+        await _firestore.collection('profiles').doc(reviewerId).get();
+
+        results.add({
+          'id': doc.id,
+          'reviewer_id': reviewerId,
+          'reviewed_user_id': data['reviewed_user_id'] ?? '',
+          'meeting_id': data['meeting_id'] ?? '',
+          'rating': data['rating'] ?? 0,
+          'comment': data['comment'] ?? '',
+          'created_at': data['created_at'],
+          'reviewer_name':
+          reviewerProfile.data()?['full_name'] ?? 'Unknown',
+          'reviewer_image':
+          reviewerProfile.data()?['profile_image'] ?? '',
+          'reviewer_college':
+          reviewerProfile.data()?['college'] ?? '',
+          'reviewer_semester':
+          reviewerProfile.data()?['semester'] ?? 1,
+        });
+      }
+
+      results.sort((a, b) {
+        final aTime =
+            (a['created_at'] as Timestamp).millisecondsSinceEpoch;
+        final bTime =
+            (b['created_at'] as Timestamp).millisecondsSinceEpoch;
+        return bTime.compareTo(aTime);
+      });
+
+      return results;
+    } catch (e) {
+      print('⚠️ getLearningReviews error: $e');
+      return [];
+    }
+  }
+
   // ==================== LEARNING REQUESTS ====================
 
   Future<void> sendLearningRequest(LearningRequestModel request) async {
@@ -639,7 +862,6 @@ class FirestoreService {
     }
   }
 
-  /// Get request history (accepted + rejected incoming requests)
   Future<List<Map<String, dynamic>>> getRequestHistory(String userId) async {
     try {
       final snapshot = await _firestore
@@ -699,7 +921,6 @@ class FirestoreService {
 
   // ==================== MEETINGS ====================
 
-  /// Create a new meeting
   Future<void> createMeeting(MeetingModel meeting) async {
     try {
       await _firestore
@@ -711,18 +932,15 @@ class FirestoreService {
     }
   }
 
-  /// Get upcoming meetings for a user (either teacher or learner)
   Future<List<Map<String, dynamic>>> getUpcomingMeetings(
       String userId) async {
     try {
-      // As teacher
       final asTeacher = await _firestore
           .collection('meetings')
           .where('teacher_id', isEqualTo: userId)
           .where('status', isEqualTo: 'scheduled')
           .get();
 
-      // As learner
       final asLearner = await _firestore
           .collection('meetings')
           .where('learner_id', isEqualTo: userId)
@@ -730,8 +948,6 @@ class FirestoreService {
           .get();
 
       final allDocs = [...asTeacher.docs, ...asLearner.docs];
-
-      // Deduplicate by id
       final seenIds = <String>{};
       final results = <Map<String, dynamic>>[];
 
@@ -741,10 +957,8 @@ class FirestoreService {
 
         final data = doc.data();
         final isTeacher = data['teacher_id'] == userId;
-        final otherId =
-        isTeacher ? data['learner_id'] : data['teacher_id'];
+        final otherId = isTeacher ? data['learner_id'] : data['teacher_id'];
 
-        // Get other user's info
         final otherProfile =
         await _firestore.collection('profiles').doc(otherId).get();
 
@@ -766,23 +980,16 @@ class FirestoreService {
           'created_at': data['created_at'],
           'is_teacher': isTeacher,
           'other_user_id': otherId,
-          'other_user_name':
-          otherProfile.data()?['full_name'] ?? 'Unknown',
-          'other_user_image':
-          otherProfile.data()?['profile_image'] ?? '',
-          'other_user_college':
-          otherProfile.data()?['college'] ?? '',
-          'other_user_semester':
-          otherProfile.data()?['semester'] ?? 1,
+          'other_user_name': otherProfile.data()?['full_name'] ?? 'Unknown',
+          'other_user_image': otherProfile.data()?['profile_image'] ?? '',
+          'other_user_college': otherProfile.data()?['college'] ?? '',
+          'other_user_semester': otherProfile.data()?['semester'] ?? 1,
         });
       }
 
-      // Sort by date+time (earliest first)
       results.sort((a, b) {
-        final aDate =
-            (a['meeting_date'] as Timestamp).millisecondsSinceEpoch;
-        final bDate =
-            (b['meeting_date'] as Timestamp).millisecondsSinceEpoch;
+        final aDate = (a['meeting_date'] as Timestamp).millisecondsSinceEpoch;
+        final bDate = (b['meeting_date'] as Timestamp).millisecondsSinceEpoch;
         return aDate.compareTo(bDate);
       });
 
@@ -792,7 +999,6 @@ class FirestoreService {
     }
   }
 
-  /// Get completed meetings for a user
   Future<List<Map<String, dynamic>>> getCompletedMeetings(
       String userId) async {
     try {
@@ -818,8 +1024,7 @@ class FirestoreService {
 
         final data = doc.data();
         final isTeacher = data['teacher_id'] == userId;
-        final otherId =
-        isTeacher ? data['learner_id'] : data['teacher_id'];
+        final otherId = isTeacher ? data['learner_id'] : data['teacher_id'];
 
         final otherProfile =
         await _firestore.collection('profiles').doc(otherId).get();
@@ -843,18 +1048,13 @@ class FirestoreService {
           'completed_at': data['completed_at'],
           'is_teacher': isTeacher,
           'other_user_id': otherId,
-          'other_user_name':
-          otherProfile.data()?['full_name'] ?? 'Unknown',
-          'other_user_image':
-          otherProfile.data()?['profile_image'] ?? '',
-          'other_user_college':
-          otherProfile.data()?['college'] ?? '',
-          'other_user_semester':
-          otherProfile.data()?['semester'] ?? 1,
+          'other_user_name': otherProfile.data()?['full_name'] ?? 'Unknown',
+          'other_user_image': otherProfile.data()?['profile_image'] ?? '',
+          'other_user_college': otherProfile.data()?['college'] ?? '',
+          'other_user_semester': otherProfile.data()?['semester'] ?? 1,
         });
       }
 
-      // Sort by completed date (latest first)
       results.sort((a, b) {
         final aTime = a['completed_at'] != null
             ? (a['completed_at'] as Timestamp).millisecondsSinceEpoch
@@ -871,7 +1071,6 @@ class FirestoreService {
     }
   }
 
-  /// Get cancelled meetings for a user
   Future<List<Map<String, dynamic>>> getCancelledMeetings(
       String userId) async {
     try {
@@ -897,8 +1096,7 @@ class FirestoreService {
 
         final data = doc.data();
         final isTeacher = data['teacher_id'] == userId;
-        final otherId =
-        isTeacher ? data['learner_id'] : data['teacher_id'];
+        final otherId = isTeacher ? data['learner_id'] : data['teacher_id'];
 
         final otherProfile =
         await _firestore.collection('profiles').doc(otherId).get();
@@ -922,14 +1120,10 @@ class FirestoreService {
           'cancelled_at': data['cancelled_at'],
           'is_teacher': isTeacher,
           'other_user_id': otherId,
-          'other_user_name':
-          otherProfile.data()?['full_name'] ?? 'Unknown',
-          'other_user_image':
-          otherProfile.data()?['profile_image'] ?? '',
-          'other_user_college':
-          otherProfile.data()?['college'] ?? '',
-          'other_user_semester':
-          otherProfile.data()?['semester'] ?? 1,
+          'other_user_name': otherProfile.data()?['full_name'] ?? 'Unknown',
+          'other_user_image': otherProfile.data()?['profile_image'] ?? '',
+          'other_user_college': otherProfile.data()?['college'] ?? '',
+          'other_user_semester': otherProfile.data()?['semester'] ?? 1,
         });
       }
 
@@ -949,7 +1143,6 @@ class FirestoreService {
     }
   }
 
-  /// Update meeting status (cancel / complete)
   Future<void> updateMeetingStatus({
     required String meetingId,
     required String status,
@@ -972,7 +1165,6 @@ class FirestoreService {
     }
   }
 
-  /// Get a single meeting by ID (full data)
   Future<Map<String, dynamic>?> getMeetingById(String meetingId) async {
     try {
       final doc =
@@ -1006,7 +1198,6 @@ class FirestoreService {
     }
   }
 
-  /// Find a meeting by its request ID (to check if one exists)
   Future<Map<String, dynamic>?> getMeetingByRequestId(
       String requestId) async {
     try {
@@ -1033,4 +1224,134 @@ class FirestoreService {
     }
   }
 
+  // ==================== REVIEWS ====================
+
+  Future<void> addReview(ReviewModel review) async {
+    try {
+      await _firestore
+          .collection('reviews')
+          .doc(review.id)
+          .set(review.toFirestore());
+    } catch (e) {
+      throw Exception('Failed to add review: $e');
+    }
+  }
+
+  Future<bool> hasReviewedMeeting({
+    required String reviewerId,
+    required String meetingId,
+  }) async {
+    try {
+      final snapshot = await _firestore
+          .collection('reviews')
+          .where('reviewer_id', isEqualTo: reviewerId)
+          .where('meeting_id', isEqualTo: meetingId)
+          .limit(1)
+          .get();
+      return snapshot.docs.isNotEmpty;
+    } catch (e) {
+      print('⚠️ hasReviewedMeeting error: $e');
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getReviewsForUser(
+      String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('reviews')
+          .where('reviewed_user_id', isEqualTo: userId)
+          .get();
+
+      final List<Map<String, dynamic>> results = [];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final reviewerId = data['reviewer_id'] as String? ?? '';
+
+        final reviewerProfile =
+        await _firestore.collection('profiles').doc(reviewerId).get();
+
+        results.add({
+          'id': doc.id,
+          'reviewer_id': reviewerId,
+          'reviewed_user_id': data['reviewed_user_id'] ?? '',
+          'meeting_id': data['meeting_id'] ?? '',
+          'rating': data['rating'] ?? 0,
+          'comment': data['comment'] ?? '',
+          'created_at': data['created_at'],
+          'reviewer_name':
+          reviewerProfile.data()?['full_name'] ?? 'Unknown',
+          'reviewer_image':
+          reviewerProfile.data()?['profile_image'] ?? '',
+          'reviewer_college':
+          reviewerProfile.data()?['college'] ?? '',
+          'reviewer_semester':
+          reviewerProfile.data()?['semester'] ?? 1,
+        });
+      }
+
+      results.sort((a, b) {
+        final aTime =
+            (a['created_at'] as Timestamp).millisecondsSinceEpoch;
+        final bTime =
+            (b['created_at'] as Timestamp).millisecondsSinceEpoch;
+        return bTime.compareTo(aTime);
+      });
+
+      return results;
+    } catch (e) {
+      throw Exception('Failed to get reviews: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getReviewsWrittenByUser(
+      String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('reviews')
+          .where('reviewer_id', isEqualTo: userId)
+          .get();
+
+      final List<Map<String, dynamic>> results = [];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final reviewedId = data['reviewed_user_id'] as String? ?? '';
+
+        final reviewedProfile =
+        await _firestore.collection('profiles').doc(reviewedId).get();
+
+        results.add({
+          'id': doc.id,
+          'reviewer_id': data['reviewer_id'] ?? '',
+          'reviewed_user_id': reviewedId,
+          'meeting_id': data['meeting_id'] ?? '',
+          'rating': data['rating'] ?? 0,
+          'comment': data['comment'] ?? '',
+          'created_at': data['created_at'],
+          'reviewed_name':
+          reviewedProfile.data()?['full_name'] ?? 'Unknown',
+          'reviewed_image':
+          reviewedProfile.data()?['profile_image'] ?? '',
+          'reviewed_college':
+          reviewedProfile.data()?['college'] ?? '',
+          'reviewed_semester':
+          reviewedProfile.data()?['semester'] ?? 1,
+        });
+      }
+
+      results.sort((a, b) {
+        final aTime =
+            (a['created_at'] as Timestamp).millisecondsSinceEpoch;
+        final bTime =
+            (b['created_at'] as Timestamp).millisecondsSinceEpoch;
+        return bTime.compareTo(aTime);
+      });
+
+      return results;
+    } catch (e) {
+      throw Exception('Failed to get written reviews: $e');
+    }
+  }
 }

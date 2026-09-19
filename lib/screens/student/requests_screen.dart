@@ -203,8 +203,9 @@ class _RequestsScreenState extends State<RequestsScreen>
     final college = showSender ? r['sender_college'] : r['receiver_college'];
     final semester =
     showSender ? r['sender_semester'] : r['receiver_semester'];
+    final otherUserId =
+    showSender ? r['sender_id'] : r['receiver_id'];
 
-    // ✅ isTeacher declared here (top of method) — valid in Dart
     final bool isTeacher = mode == 'incoming' || mode == 'history';
 
     final timeSource = mode == 'history' && r['responded_at'] != null
@@ -350,7 +351,6 @@ class _RequestsScreenState extends State<RequestsScreen>
 
               // 1. NO MEETING YET
               if (meetingStatus == null) ...[
-                // Teacher sees Schedule button
                 if (isTeacher)
                   SizedBox(
                     width: double.infinity,
@@ -387,7 +387,6 @@ class _RequestsScreenState extends State<RequestsScreen>
                       ),
                     ),
                   )
-                // Learner sees waiting message
                 else
                   Container(
                     width: double.infinity,
@@ -418,7 +417,7 @@ class _RequestsScreenState extends State<RequestsScreen>
                   ),
               ],
 
-              // 2. MEETING SCHEDULED → Both see View Meeting
+              // 2. MEETING SCHEDULED → View Meeting
               if (meetingStatus == 'scheduled')
                 SizedBox(
                   width: double.infinity,
@@ -433,6 +432,8 @@ class _RequestsScreenState extends State<RequestsScreen>
                             meetingData: {
                               'id': r['meeting_id'],
                               'is_teacher': isTeacher,
+                              // ✅ NEW: required for reviews
+                              'other_user_id': otherUserId,
                               'status': r['meeting_status'],
                               'skill_name': r['skill_name'],
                               'meeting_date': r['meeting_date'],
@@ -483,37 +484,73 @@ class _RequestsScreenState extends State<RequestsScreen>
                   ),
                 ),
 
-              // 3. COMPLETED → Green banner
+              // 3. MEETING COMPLETED
               if (meetingStatus == 'completed')
-                Container(
+                SizedBox(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.success.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: AppColors.success.withOpacity(0.5)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.check_circle,
-                          color: AppColors.success, size: 20),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Meeting completed successfully',
-                          style: TextStyle(
-                            color: AppColors.success,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
+                  height: 44,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MeetingDetailScreen(
+                            meetingId: r['meeting_id'],
+                            meetingData: {
+                              'id': r['meeting_id'],
+                              'is_teacher': isTeacher,
+                              'other_user_id': otherUserId,
+                              'status': r['meeting_status'],
+                              'skill_name': r['skill_name'],
+                              'meeting_date': r['meeting_date'],
+                              'start_time': r['meeting_start_time'],
+                              'end_time': r['meeting_end_time'],
+                              'zoom_join_url': r['zoom_join_url'],
+                              'zoom_start_url': r['zoom_start_url'],
+                              'other_user_name': showSender
+                                  ? r['sender_name']
+                                  : r['receiver_name'],
+                              'other_user_image': showSender
+                                  ? r['sender_image']
+                                  : r['receiver_image'],
+                              'other_user_college': showSender
+                                  ? r['sender_college']
+                                  : r['receiver_college'],
+                              'other_user_semester': showSender
+                                  ? r['sender_semester']
+                                  : r['receiver_semester'],
+                            },
                           ),
                         ),
+                      );
+                      if (result != null) _reload();
+                    },
+                    icon: const Icon(
+                      Icons.star,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
+                    label: const Text(
+                      'View Details / Leave Review',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
                       ),
-                    ],
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                      AppColors.primary.withOpacity(0.1),
+                      foregroundColor: AppColors.primary,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
                   ),
                 ),
 
-              // 4. CANCELLED → Red banner
+              // 4. MEETING CANCELLED
               if (meetingStatus == 'cancelled')
                 Container(
                   width: double.infinity,

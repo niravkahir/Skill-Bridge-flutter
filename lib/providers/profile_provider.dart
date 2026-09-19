@@ -16,12 +16,19 @@ class ProfileProvider extends ChangeNotifier {
   List<Map<String, dynamic>> _learnSkillsWithDetails = [];
   bool _isLoading = false;
   String? _error;
+
   // Stats
   double _averageRating = 0.0;
   int _reviewCount = 0;
   int _taughtCount = 0;
   int _learnedCount = 0;
   int _incomingRequestsCount = 0;
+
+  // Split ratings
+  double _teachingRating = 0.0;
+  int _teachingReviewCount = 0;
+  double _learningRating = 0.0;
+  int _learningReviewCount = 0;
 
   // ==================== GETTERS ====================
   ProfileModel? get profile => _profile;
@@ -36,11 +43,19 @@ class ProfileProvider extends ChangeNotifier {
   String get fullName => _profile?.fullName ?? 'Unknown';
   String get profileImage => _profile?.profileImage ?? '';
   bool get isVerified => _profile?.verificationStatus == 'verified';
+
+  // Overall stats
   double get averageRating => _averageRating;
   int get reviewCount => _reviewCount;
   int get taughtCount => _taughtCount;
   int get learnedCount => _learnedCount;
   int get incomingRequestsCount => _incomingRequestsCount;
+
+  // Split ratings
+  double get teachingRating => _teachingRating;
+  int get teachingReviewCount => _teachingReviewCount;
+  double get learningRating => _learningRating;
+  int get learningReviewCount => _learningReviewCount;
 
   // ==================== LOAD PROFILE ====================
   Future<void> loadProfile(String userId) async {
@@ -48,26 +63,34 @@ class ProfileProvider extends ChangeNotifier {
     _error = null;
 
     try {
-      // Load profile
       _profile = await _firestore.getProfile(userId);
 
-      // Load skills
       final allSkills = await _firestore.getUserSkillsWithDetails(userId);
       _teachSkillsWithDetails =
           allSkills.where((s) => s['type'] == 'teach').toList();
       _learnSkillsWithDetails =
           allSkills.where((s) => s['type'] == 'learn').toList();
 
-      // ✅ Load stats
+      // Overall stats
       _averageRating = await _firestore.getAverageRating(userId);
       _reviewCount = await _firestore.getReviewCount(userId);
       _taughtCount = await _firestore.getTaughtCount(userId);
       _learnedCount = await _firestore.getLearnedCount(userId);
-      _incomingRequestsCount = await _firestore.getIncomingRequestsCount(userId);
+      _incomingRequestsCount =
+      await _firestore.getIncomingRequestsCount(userId);
 
-      print('✅ Profile loaded. Teach: ${_teachSkillsWithDetails.length}, '
-          'Learn: ${_learnSkillsWithDetails.length}, '
-          'Rating: $_averageRating, Taught: $_taughtCount, Learned: $_learnedCount');
+      // Split ratings
+      final teachingStats = await _firestore.getTeachingRating(userId);
+      _teachingRating = (teachingStats['average'] ?? 0.0) as double;
+      _teachingReviewCount = (teachingStats['count'] ?? 0) as int;
+
+      final learningStats = await _firestore.getLearningRating(userId);
+      _learningRating = (learningStats['average'] ?? 0.0) as double;
+      _learningReviewCount = (learningStats['count'] ?? 0) as int;
+
+      print('✅ Profile loaded. Teaching: $_teachingRating '
+          '(${_teachingReviewCount}), Learning: $_learningRating '
+          '(${_learningReviewCount})');
     } catch (e) {
       _error = e.toString();
       print('❌ loadProfile error: $e');
@@ -113,30 +136,20 @@ class ProfileProvider extends ChangeNotifier {
     }
   }
 
-  // ==================== UPLOAD PROFILE PICTURE (CLOUDINARY) ====================
+  // ==================== UPLOAD PROFILE PICTURE ====================
   Future<bool> uploadProfilePicture(String userId, XFile imageFile) async {
     _setLoading(true);
     _error = null;
 
     try {
-      print('📸 Starting upload for user: $userId');
-
-      // 1. Upload to Cloudinary
       final imageUrl = await _cloudinary.uploadProfileImage(userId, imageFile);
-      print('✅ Cloudinary URL: $imageUrl');
-
-      // 2. Save URL to Firestore
       await _firestore.updateProfilePicture(userId, imageUrl);
-      print('✅ Firestore updated with image URL');
 
-      // 3. Update local state
       if (_profile != null) {
         _profile = _profile!.copyWith(profileImage: imageUrl);
       }
-
       return true;
     } catch (e) {
-      print('❌ Upload failed: $e');
       _error = e.toString();
       return false;
     } finally {
@@ -182,7 +195,6 @@ class ProfileProvider extends ChangeNotifier {
     }
   }
 
-  // ==================== REMOVE ALL SKILLS BY TYPE ====================
   Future<bool> removeAllSkills(String userId, String type) async {
     try {
       await _firestore.removeUserSkillsByType(userId, type);
@@ -193,12 +205,10 @@ class ProfileProvider extends ChangeNotifier {
     }
   }
 
-  // ==================== CLEAR ERROR ====================
   void clearError() {
     _error = null;
   }
 
-  // ==================== HELPER ====================
   void _setLoading(bool loading) {
     _isLoading = loading;
     notifyListeners();

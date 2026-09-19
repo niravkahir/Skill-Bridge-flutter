@@ -3,6 +3,7 @@ import '../../config/app_colors.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/profile/profile_picture.dart';
 import '../../widgets/profile/skill_chip.dart';
+import 'reviews_list_screen.dart';
 import 'send_request_screen.dart';
 
 class OtherProfileScreen extends StatefulWidget {
@@ -28,6 +29,12 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
   int _reviewCount = 0;
   int _taughtCount = 0;
   int _learnedCount = 0;
+
+  double _teachingRating = 0.0;
+  int _teachingReviewCount = 0;
+  double _learningRating = 0.0;
+  int _learningReviewCount = 0;
+
   bool _isLoadingStats = true;
 
   @override
@@ -44,6 +51,9 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
     }
 
     final stats = await _firestore.getUserStats(userId);
+    final teachingStats = await _firestore.getTeachingRating(userId);
+    final learningStats = await _firestore.getLearningRating(userId);
+
     if (!mounted) return;
 
     setState(() {
@@ -51,6 +61,10 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
       _reviewCount = (stats['review_count'] ?? 0) as int;
       _taughtCount = (stats['taught_count'] ?? 0) as int;
       _learnedCount = (stats['learned_count'] ?? 0) as int;
+      _teachingRating = (teachingStats['average'] ?? 0.0) as double;
+      _teachingReviewCount = (teachingStats['count'] ?? 0) as int;
+      _learningRating = (learningStats['average'] ?? 0.0) as double;
+      _learningReviewCount = (learningStats['count'] ?? 0) as int;
       _isLoadingStats = false;
     });
   }
@@ -92,7 +106,6 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // ==================== PROFILE HEADER ====================
             Center(
               child: Column(
                 children: [
@@ -101,8 +114,6 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
                     size: 120,
                   ),
                   const SizedBox(height: 16),
-
-                  // Name + Rating badge
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -159,41 +170,57 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
               ),
             ),
 
-            // ==================== STATS ROW ====================
+            // ============ SPLIT STATS ============
             _isLoadingStats
                 ? const Padding(
               padding: EdgeInsets.symmetric(vertical: 20),
               child: Center(child: CircularProgressIndicator()),
             )
-                : Row(
+                : Column(
               children: [
-                _statCard(
-                  label: 'Rating',
-                  value: _reviewCount > 0
-                      ? '${_averageRating.toStringAsFixed(1)} ★'
-                      : '—',
-                  icon: Icons.star,
-                  iconColor: Colors.amber,
+                Row(
+                  children: [
+                    _statCard(
+                      label: 'Teaching',
+                      value: _teachingReviewCount > 0
+                          ? '${_teachingRating.toStringAsFixed(1)} ★'
+                          : '—',
+                      icon: Icons.school,
+                      iconColor: Colors.amber,
+                    ),
+                    const SizedBox(width: 12),
+                    _statCard(
+                      label: 'Learning',
+                      value: _learningReviewCount > 0
+                          ? '${_learningRating.toStringAsFixed(1)} ★'
+                          : '—',
+                      icon: Icons.book,
+                      iconColor: Colors.orange,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                _statCard(
-                  label: 'Taught',
-                  value: _taughtCount.toString(),
-                  icon: Icons.school,
-                  iconColor: AppColors.primary,
-                ),
-                const SizedBox(width: 12),
-                _statCard(
-                  label: 'Learned',
-                  value: _learnedCount.toString(),
-                  icon: Icons.book,
-                  iconColor: Colors.green,
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _statCard(
+                      label: 'Taught',
+                      value: _taughtCount.toString(),
+                      icon: Icons.school,
+                      iconColor: AppColors.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    _statCard(
+                      label: 'Learned',
+                      value: _learnedCount.toString(),
+                      icon: Icons.book,
+                      iconColor: Colors.green,
+                    ),
+                  ],
                 ),
               ],
             ),
             const SizedBox(height: 24),
 
-            // ==================== INFO CARDS ====================
             _infoCard(
               icon: Icons.school,
               label: 'College',
@@ -213,7 +240,6 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
             ),
             const SizedBox(height: 24),
 
-            // ==================== SKILLS ====================
             _skillSection(
               title: '🛠️ Skills They Can Teach',
               skills: widget.teachSkills,
@@ -225,7 +251,43 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
             ),
             const SizedBox(height: 24),
 
-            // ==================== REQUEST BUTTON ====================
+            // See Reviews
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ReviewsListScreen(
+                        userId: widget.studentData['user_id'],
+                        userName: widget.studentData['full_name'] ?? 'User',
+                        showAsOwner: false,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.star, color: Colors.amber),
+                label: const Text(
+                  'See Their Reviews',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: AppColors.primary),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Request button
             SizedBox(
               width: double.infinity,
               height: 54,
@@ -261,7 +323,6 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
     );
   }
 
-  // ==================== STAT CARD ====================
   Widget _statCard({
     required String label,
     required String value,
@@ -309,7 +370,6 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
     );
   }
 
-  // ==================== INFO CARD ====================
   Widget _infoCard({
     required IconData icon,
     required String label,
@@ -360,7 +420,6 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
     );
   }
 
-  // ==================== SKILL SECTION ====================
   Widget _skillSection({
     required String title,
     required List<Map<String, dynamic>> skills,
