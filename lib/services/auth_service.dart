@@ -115,19 +115,27 @@ class AuthService {
   String _handleAuthError(FirebaseAuthException e) {
     switch (e.code) {
       case 'user-not-found':
-        return 'No user found with this email.';
+        return 'No account found with this email. Please check or register.';
       case 'wrong-password':
-        return 'Incorrect password.';
+        return 'Incorrect password. Please try again.';
+      case 'invalid-credential':
+        return 'Invalid email or password. Please check and try again.';
       case 'email-already-in-use':
-        return 'Email already in use.';
+        return 'This email is already registered. Try logging in instead.';
       case 'invalid-email':
-        return 'Invalid email address.';
+        return 'Please enter a valid email address (e.g., name@gmail.com).';
       case 'weak-password':
-        return 'Password is too weak.';
+        return 'Password too weak. Use at least 6 characters.';
       case 'too-many-requests':
-        return 'Too many attempts. Try again later.';
+        return 'Too many failed attempts. Please wait a moment and try again.';
+      case 'network-request-failed':
+        return 'Network error. Please check your internet connection.';
+      case 'user-disabled':
+        return 'This account has been disabled. Contact support.';
+      case 'operation-not-allowed':
+        return 'This login method is not enabled. Contact support.';
       default:
-        return 'An error occurred: ${e.message}';
+        return 'Something went wrong. Please try again. (${e.code})';
     }
   }
 }

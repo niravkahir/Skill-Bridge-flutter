@@ -24,12 +24,10 @@ class OtherProfileScreen extends StatefulWidget {
 class _OtherProfileScreenState extends State<OtherProfileScreen> {
   final FirestoreService _firestore = FirestoreService();
 
-  // Stats
   double _averageRating = 0.0;
   int _reviewCount = 0;
   int _taughtCount = 0;
   int _learnedCount = 0;
-
   bool _isLoadingStats = true;
 
   @override
@@ -57,6 +55,28 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
     });
   }
 
+  void _openSendRequest() {
+    if (widget.teachSkills.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This user has no skills to teach yet'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SendRequestScreen(
+          studentData: widget.studentData,
+          teachSkills: widget.teachSkills,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = widget.studentData;
@@ -64,18 +84,9 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(s['full_name'] ?? 'Student Profile'),
-        actions: [
-          IconButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Send Request - Coming Soon'),
-                ),
-              );
-            },
-            icon: const Icon(Icons.send),
-          ),
-        ],
+        backgroundColor: Colors.white,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -91,7 +102,7 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Name + rating badge
+                  // Name + Rating badge
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -215,22 +226,12 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
             const SizedBox(height: 24),
 
             // ==================== REQUEST BUTTON ====================
-            // ✅ FIXED: Matches Edit Profile style
             SizedBox(
               width: double.infinity,
               height: 54,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SendRequestScreen(
-                        studentData: widget.studentData,
-                        teachSkills: widget.teachSkills,
-                      ),
-                    ),
-                  );
-                },                icon: const Icon(
+                onPressed: _openSendRequest,
+                icon: const Icon(
                   Icons.send,
                   color: AppColors.primary,
                   size: 20,

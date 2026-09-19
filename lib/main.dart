@@ -8,6 +8,7 @@ import 'providers/skill_provider.dart';
 import 'providers/request_provider.dart';
 import 'providers/meeting_provider.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/splash_screen.dart';
 import 'screens/student/home_screen.dart';
 
 void main() async {
@@ -30,7 +31,7 @@ class SkillBridgeApp extends StatelessWidget {
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
-      initialRoute: '/login',
+      initialRoute: '/',
       builder: (context, child) {
         return MultiProvider(
           providers: [
@@ -44,10 +45,10 @@ class SkillBridgeApp extends StatelessWidget {
         );
       },
       routes: {
+        '/': (context) => const SplashScreen(),
         '/login': (context) => const LoginScreen(),
         '/home': (context) => const HomeScreen(),
       },
-      home: const LoginScreen(),
     );
   }
 }
