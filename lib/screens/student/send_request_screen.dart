@@ -189,8 +189,8 @@ class _SendRequestScreenState extends State<SendRequestScreen> {
                   if (v == null || v.trim().isEmpty) {
                     return 'Please write a message';
                   }
-                  if (v.trim().length < 20) {
-                    return 'Message must be at least 20 characters';
+                  if (v.trim().length < 10) {
+                    return 'Message must be at least 10 characters';
                   }
                   return null;
                 },

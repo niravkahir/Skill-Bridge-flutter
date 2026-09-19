@@ -6,6 +6,7 @@ import 'providers/auth_provider.dart';
 import 'providers/profile_provider.dart';
 import 'providers/skill_provider.dart';
 import 'providers/request_provider.dart';
+import 'providers/meeting_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/student/home_screen.dart';
 
@@ -22,8 +23,6 @@ class SkillBridgeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ MultiProvider is now INSIDE MaterialApp's builder
-    // This ensures all pushed routes get the providers on web
     return MaterialApp(
       title: 'Skill Bridge',
       theme: ThemeData(
@@ -33,13 +32,13 @@ class SkillBridgeApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       initialRoute: '/login',
       builder: (context, child) {
-        // ✅ Wrap the entire navigator with MultiProvider
         return MultiProvider(
           providers: [
             ChangeNotifierProvider(create: (_) => AuthProvider()),
             ChangeNotifierProvider(create: (_) => ProfileProvider()),
             ChangeNotifierProvider(create: (_) => SkillProvider()),
             ChangeNotifierProvider(create: (_) => RequestProvider()),
+            ChangeNotifierProvider(create: (_) => MeetingProvider()),
           ],
           child: child!,
         );

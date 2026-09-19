@@ -4,6 +4,8 @@ import '../../config/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 import '../../widgets/profile/profile_picture.dart';
+import 'meeting_detail_screen.dart';
+import 'schedule_meeting_screen.dart';
 
 class RequestsScreen extends StatefulWidget {
   const RequestsScreen({super.key});
@@ -55,7 +57,6 @@ class _RequestsScreenState extends State<RequestsScreen>
         ),
         bottom: TabBar(
           controller: _tabController,
-          // ✅ FIXED — visible colors on light background
           labelColor: AppColors.primary,
           unselectedLabelColor: AppColors.textSecondary,
           indicatorColor: AppColors.primary,
@@ -194,6 +195,7 @@ class _RequestsScreenState extends State<RequestsScreen>
   // ==================== REQUEST CARD ====================
   Widget _requestCard(Map<String, dynamic> r, {required String mode}) {
     final status = r['status'] ?? 'pending';
+    final meetingStatus = r['meeting_status'];
 
     final bool showSender = mode == 'incoming' || mode == 'history';
     final name = showSender ? r['sender_name'] : r['receiver_name'];
@@ -201,6 +203,9 @@ class _RequestsScreenState extends State<RequestsScreen>
     final college = showSender ? r['sender_college'] : r['receiver_college'];
     final semester =
     showSender ? r['sender_semester'] : r['receiver_semester'];
+
+    // ✅ isTeacher declared here (top of method) — valid in Dart
+    final bool isTeacher = mode == 'incoming' || mode == 'history';
 
     final timeSource = mode == 'history' && r['responded_at'] != null
         ? r['responded_at']
@@ -214,7 +219,7 @@ class _RequestsScreenState extends State<RequestsScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
+            // ============ HEADER ============
             Row(
               children: [
                 ProfilePicture(imageUrl: image, size: 48),
@@ -246,7 +251,7 @@ class _RequestsScreenState extends State<RequestsScreen>
             ),
             const SizedBox(height: 12),
 
-            // Skill
+            // ============ SKILL ============
             Row(
               children: [
                 const Icon(Icons.school, size: 16, color: AppColors.primary),
@@ -262,7 +267,7 @@ class _RequestsScreenState extends State<RequestsScreen>
             ),
             const SizedBox(height: 8),
 
-            // Message
+            // ============ MESSAGE ============
             Text(
               r['message'] ?? '',
               style: TextStyle(
@@ -272,16 +277,13 @@ class _RequestsScreenState extends State<RequestsScreen>
               ),
             ),
 
-            // Preferred time
+            // ============ PREFERRED TIME ============
             if ((r['preferred_time'] ?? '').toString().isNotEmpty) ...[
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(
-                    Icons.access_time,
-                    size: 14,
-                    color: AppColors.textSecondary,
-                  ),
+                  const Icon(Icons.access_time,
+                      size: 14, color: AppColors.textSecondary),
                   const SizedBox(width: 6),
                   Text(
                     r['preferred_time'],
@@ -303,7 +305,7 @@ class _RequestsScreenState extends State<RequestsScreen>
               ),
             ),
 
-            // Actions
+            // ============ PENDING ACTIONS ============
             if (mode == 'incoming' && status == 'pending') ...[
               const SizedBox(height: 16),
               Row(
@@ -340,6 +342,206 @@ class _RequestsScreenState extends State<RequestsScreen>
                       () => _updateStatus(r['id'], 'cancelled'),
                 ),
               ),
+            ],
+
+            // ============ ACCEPTED: MEETING FLOW ============
+            if (status == 'accepted') ...[
+              const SizedBox(height: 16),
+
+              // 1. NO MEETING YET
+              if (meetingStatus == null) ...[
+                // Teacher sees Schedule button
+                if (isTeacher)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                ScheduleMeetingScreen(requestData: r),
+                          ),
+                        );
+                        if (result == true) _reload();
+                      },
+                      icon: const Icon(
+                        Icons.video_call,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      label: const Text(
+                        'Schedule Meeting',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                  )
+                // Learner sees waiting message
+                else
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color: Colors.orange.withOpacity(0.5)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.hourglass_empty,
+                            color: Colors.orange, size: 20),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Waiting for teacher to schedule the meeting',
+                            style: TextStyle(
+                              color: Colors.orange,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+
+              // 2. MEETING SCHEDULED → Both see View Meeting
+              if (meetingStatus == 'scheduled')
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MeetingDetailScreen(
+                            meetingId: r['meeting_id'],
+                            meetingData: {
+                              'id': r['meeting_id'],
+                              'is_teacher': isTeacher,
+                              'status': r['meeting_status'],
+                              'skill_name': r['skill_name'],
+                              'meeting_date': r['meeting_date'],
+                              'start_time': r['meeting_start_time'],
+                              'end_time': r['meeting_end_time'],
+                              'zoom_join_url': r['zoom_join_url'],
+                              'zoom_start_url': r['zoom_start_url'],
+                              'other_user_name': showSender
+                                  ? r['sender_name']
+                                  : r['receiver_name'],
+                              'other_user_image': showSender
+                                  ? r['sender_image']
+                                  : r['receiver_image'],
+                              'other_user_college': showSender
+                                  ? r['sender_college']
+                                  : r['receiver_college'],
+                              'other_user_semester': showSender
+                                  ? r['sender_semester']
+                                  : r['receiver_semester'],
+                            },
+                          ),
+                        ),
+                      );
+                      if (result != null) _reload();
+                    },
+                    icon: const Icon(
+                      Icons.videocam,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
+                    label: const Text(
+                      'View Meeting',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                      AppColors.primary.withOpacity(0.1),
+                      foregroundColor: AppColors.primary,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // 3. COMPLETED → Green banner
+              if (meetingStatus == 'completed')
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: AppColors.success.withOpacity(0.5)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.check_circle,
+                          color: AppColors.success, size: 20),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Meeting completed successfully',
+                          style: TextStyle(
+                            color: AppColors.success,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // 4. CANCELLED → Red banner
+              if (meetingStatus == 'cancelled')
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: AppColors.error.withOpacity(0.5)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.cancel,
+                          color: AppColors.error, size: 20),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Meeting was cancelled',
+                          style: TextStyle(
+                            color: AppColors.error,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ],
         ),

@@ -9,6 +9,7 @@ import '../../screens/student/edit_profile_screen.dart';
 import '../../screens/student/add_skill_screen.dart';
 import '../../screens/student/search_screen.dart';
 import '../../screens/student/requests_screen.dart';
+import '../../screens/student/meetings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -221,13 +222,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       _actionCard('Find Students', Icons.search, cardWidth, () {
                         setState(() => _selectedIndex = 2);
                       }),
-                      _actionCard('My Meetings', Icons.video_call, cardWidth,
-                              () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('Meetings - Coming Soon')),
-                            );
-                          }),
+                      _actionCard('My Meetings', Icons.video_call, cardWidth, () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MeetingsScreen(),
+                          ),
+                        );
+                      }),
                       _actionCard('Reviews', Icons.star, cardWidth, () {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(

@@ -3,6 +3,7 @@ import '../models/profile_model.dart';
 import '../models/user_model.dart';
 import '../models/user_skill_model.dart';
 import '../models/learning_request_model.dart';
+import '../models/meeting_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -695,4 +696,341 @@ class FirestoreService {
       throw Exception('Failed to load request history: $e');
     }
   }
+
+  // ==================== MEETINGS ====================
+
+  /// Create a new meeting
+  Future<void> createMeeting(MeetingModel meeting) async {
+    try {
+      await _firestore
+          .collection('meetings')
+          .doc(meeting.id)
+          .set(meeting.toFirestore());
+    } catch (e) {
+      throw Exception('Failed to create meeting: $e');
+    }
+  }
+
+  /// Get upcoming meetings for a user (either teacher or learner)
+  Future<List<Map<String, dynamic>>> getUpcomingMeetings(
+      String userId) async {
+    try {
+      // As teacher
+      final asTeacher = await _firestore
+          .collection('meetings')
+          .where('teacher_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'scheduled')
+          .get();
+
+      // As learner
+      final asLearner = await _firestore
+          .collection('meetings')
+          .where('learner_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'scheduled')
+          .get();
+
+      final allDocs = [...asTeacher.docs, ...asLearner.docs];
+
+      // Deduplicate by id
+      final seenIds = <String>{};
+      final results = <Map<String, dynamic>>[];
+
+      for (var doc in allDocs) {
+        if (seenIds.contains(doc.id)) continue;
+        seenIds.add(doc.id);
+
+        final data = doc.data();
+        final isTeacher = data['teacher_id'] == userId;
+        final otherId =
+        isTeacher ? data['learner_id'] : data['teacher_id'];
+
+        // Get other user's info
+        final otherProfile =
+        await _firestore.collection('profiles').doc(otherId).get();
+
+        results.add({
+          'id': doc.id,
+          'request_id': data['request_id'] ?? '',
+          'teacher_id': data['teacher_id'] ?? '',
+          'learner_id': data['learner_id'] ?? '',
+          'skill_id': data['skill_id'] ?? '',
+          'skill_name': data['skill_name'] ?? 'Unknown Skill',
+          'meeting_date': data['meeting_date'],
+          'start_time': data['start_time'] ?? '',
+          'end_time': data['end_time'] ?? '',
+          'zoom_meeting_id': data['zoom_meeting_id'] ?? '',
+          'zoom_join_url': data['zoom_join_url'] ?? '',
+          'zoom_start_url': data['zoom_start_url'] ?? '',
+          'status': data['status'] ?? 'scheduled',
+          'topic': data['topic'] ?? '',
+          'created_at': data['created_at'],
+          'is_teacher': isTeacher,
+          'other_user_id': otherId,
+          'other_user_name':
+          otherProfile.data()?['full_name'] ?? 'Unknown',
+          'other_user_image':
+          otherProfile.data()?['profile_image'] ?? '',
+          'other_user_college':
+          otherProfile.data()?['college'] ?? '',
+          'other_user_semester':
+          otherProfile.data()?['semester'] ?? 1,
+        });
+      }
+
+      // Sort by date+time (earliest first)
+      results.sort((a, b) {
+        final aDate =
+            (a['meeting_date'] as Timestamp).millisecondsSinceEpoch;
+        final bDate =
+            (b['meeting_date'] as Timestamp).millisecondsSinceEpoch;
+        return aDate.compareTo(bDate);
+      });
+
+      return results;
+    } catch (e) {
+      throw Exception('Failed to load upcoming meetings: $e');
+    }
+  }
+
+  /// Get completed meetings for a user
+  Future<List<Map<String, dynamic>>> getCompletedMeetings(
+      String userId) async {
+    try {
+      final asTeacher = await _firestore
+          .collection('meetings')
+          .where('teacher_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'completed')
+          .get();
+
+      final asLearner = await _firestore
+          .collection('meetings')
+          .where('learner_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'completed')
+          .get();
+
+      final allDocs = [...asTeacher.docs, ...asLearner.docs];
+      final seenIds = <String>{};
+      final results = <Map<String, dynamic>>[];
+
+      for (var doc in allDocs) {
+        if (seenIds.contains(doc.id)) continue;
+        seenIds.add(doc.id);
+
+        final data = doc.data();
+        final isTeacher = data['teacher_id'] == userId;
+        final otherId =
+        isTeacher ? data['learner_id'] : data['teacher_id'];
+
+        final otherProfile =
+        await _firestore.collection('profiles').doc(otherId).get();
+
+        results.add({
+          'id': doc.id,
+          'request_id': data['request_id'] ?? '',
+          'teacher_id': data['teacher_id'] ?? '',
+          'learner_id': data['learner_id'] ?? '',
+          'skill_id': data['skill_id'] ?? '',
+          'skill_name': data['skill_name'] ?? 'Unknown Skill',
+          'meeting_date': data['meeting_date'],
+          'start_time': data['start_time'] ?? '',
+          'end_time': data['end_time'] ?? '',
+          'zoom_meeting_id': data['zoom_meeting_id'] ?? '',
+          'zoom_join_url': data['zoom_join_url'] ?? '',
+          'zoom_start_url': data['zoom_start_url'] ?? '',
+          'status': data['status'] ?? 'completed',
+          'topic': data['topic'] ?? '',
+          'created_at': data['created_at'],
+          'completed_at': data['completed_at'],
+          'is_teacher': isTeacher,
+          'other_user_id': otherId,
+          'other_user_name':
+          otherProfile.data()?['full_name'] ?? 'Unknown',
+          'other_user_image':
+          otherProfile.data()?['profile_image'] ?? '',
+          'other_user_college':
+          otherProfile.data()?['college'] ?? '',
+          'other_user_semester':
+          otherProfile.data()?['semester'] ?? 1,
+        });
+      }
+
+      // Sort by completed date (latest first)
+      results.sort((a, b) {
+        final aTime = a['completed_at'] != null
+            ? (a['completed_at'] as Timestamp).millisecondsSinceEpoch
+            : 0;
+        final bTime = b['completed_at'] != null
+            ? (b['completed_at'] as Timestamp).millisecondsSinceEpoch
+            : 0;
+        return bTime.compareTo(aTime);
+      });
+
+      return results;
+    } catch (e) {
+      throw Exception('Failed to load completed meetings: $e');
+    }
+  }
+
+  /// Get cancelled meetings for a user
+  Future<List<Map<String, dynamic>>> getCancelledMeetings(
+      String userId) async {
+    try {
+      final asTeacher = await _firestore
+          .collection('meetings')
+          .where('teacher_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'cancelled')
+          .get();
+
+      final asLearner = await _firestore
+          .collection('meetings')
+          .where('learner_id', isEqualTo: userId)
+          .where('status', isEqualTo: 'cancelled')
+          .get();
+
+      final allDocs = [...asTeacher.docs, ...asLearner.docs];
+      final seenIds = <String>{};
+      final results = <Map<String, dynamic>>[];
+
+      for (var doc in allDocs) {
+        if (seenIds.contains(doc.id)) continue;
+        seenIds.add(doc.id);
+
+        final data = doc.data();
+        final isTeacher = data['teacher_id'] == userId;
+        final otherId =
+        isTeacher ? data['learner_id'] : data['teacher_id'];
+
+        final otherProfile =
+        await _firestore.collection('profiles').doc(otherId).get();
+
+        results.add({
+          'id': doc.id,
+          'request_id': data['request_id'] ?? '',
+          'teacher_id': data['teacher_id'] ?? '',
+          'learner_id': data['learner_id'] ?? '',
+          'skill_id': data['skill_id'] ?? '',
+          'skill_name': data['skill_name'] ?? 'Unknown Skill',
+          'meeting_date': data['meeting_date'],
+          'start_time': data['start_time'] ?? '',
+          'end_time': data['end_time'] ?? '',
+          'zoom_meeting_id': data['zoom_meeting_id'] ?? '',
+          'zoom_join_url': data['zoom_join_url'] ?? '',
+          'zoom_start_url': data['zoom_start_url'] ?? '',
+          'status': data['status'] ?? 'cancelled',
+          'topic': data['topic'] ?? '',
+          'created_at': data['created_at'],
+          'cancelled_at': data['cancelled_at'],
+          'is_teacher': isTeacher,
+          'other_user_id': otherId,
+          'other_user_name':
+          otherProfile.data()?['full_name'] ?? 'Unknown',
+          'other_user_image':
+          otherProfile.data()?['profile_image'] ?? '',
+          'other_user_college':
+          otherProfile.data()?['college'] ?? '',
+          'other_user_semester':
+          otherProfile.data()?['semester'] ?? 1,
+        });
+      }
+
+      results.sort((a, b) {
+        final aTime = a['cancelled_at'] != null
+            ? (a['cancelled_at'] as Timestamp).millisecondsSinceEpoch
+            : 0;
+        final bTime = b['cancelled_at'] != null
+            ? (b['cancelled_at'] as Timestamp).millisecondsSinceEpoch
+            : 0;
+        return bTime.compareTo(aTime);
+      });
+
+      return results;
+    } catch (e) {
+      throw Exception('Failed to load cancelled meetings: $e');
+    }
+  }
+
+  /// Update meeting status (cancel / complete)
+  Future<void> updateMeetingStatus({
+    required String meetingId,
+    required String status,
+  }) async {
+    try {
+      final updates = <String, dynamic>{'status': status};
+
+      if (status == 'completed') {
+        updates['completed_at'] = Timestamp.now();
+      } else if (status == 'cancelled') {
+        updates['cancelled_at'] = Timestamp.now();
+      }
+
+      await _firestore
+          .collection('meetings')
+          .doc(meetingId)
+          .update(updates);
+    } catch (e) {
+      throw Exception('Failed to update meeting: $e');
+    }
+  }
+
+  /// Get a single meeting by ID (full data)
+  Future<Map<String, dynamic>?> getMeetingById(String meetingId) async {
+    try {
+      final doc =
+      await _firestore.collection('meetings').doc(meetingId).get();
+      if (!doc.exists) return null;
+
+      final data = doc.data()!;
+      final teacherProfile = await _firestore
+          .collection('profiles')
+          .doc(data['teacher_id'])
+          .get();
+      final learnerProfile = await _firestore
+          .collection('profiles')
+          .doc(data['learner_id'])
+          .get();
+
+      return {
+        'id': doc.id,
+        ...data,
+        'teacher_name': teacherProfile.data()?['full_name'] ?? 'Unknown',
+        'teacher_image': teacherProfile.data()?['profile_image'] ?? '',
+        'teacher_college': teacherProfile.data()?['college'] ?? '',
+        'teacher_semester': teacherProfile.data()?['semester'] ?? 1,
+        'learner_name': learnerProfile.data()?['full_name'] ?? 'Unknown',
+        'learner_image': learnerProfile.data()?['profile_image'] ?? '',
+        'learner_college': learnerProfile.data()?['college'] ?? '',
+        'learner_semester': learnerProfile.data()?['semester'] ?? 1,
+      };
+    } catch (e) {
+      throw Exception('Failed to get meeting: $e');
+    }
+  }
+
+  /// Find a meeting by its request ID (to check if one exists)
+  Future<Map<String, dynamic>?> getMeetingByRequestId(
+      String requestId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('meetings')
+          .where('request_id', isEqualTo: requestId)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) return null;
+
+      final doc = snapshot.docs.first;
+      final data = doc.data();
+
+      return {
+        'id': doc.id,
+        ...data,
+        'meeting_date_ts':
+        (data['meeting_date'] as Timestamp).millisecondsSinceEpoch,
+      };
+    } catch (e) {
+      print('⚠️ getMeetingByRequestId error: $e');
+      return null;
+    }
+  }
+
 }
