@@ -112,161 +112,177 @@ class _HomeScreenState extends State<HomeScreen> {
         final profile = provider.profile;
         final name = profile?.fullName ?? 'User';
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Welcome card
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  borderRadius: BorderRadius.circular(16),
+        // ✅ Pull-to-refresh wraps everything
+        return RefreshIndicator(
+          onRefresh: () async {
+            final auth = Provider.of<AuthProvider>(context, listen: false);
+            final prof = Provider.of<ProfileProvider>(context, listen: false);
+            if (auth.user != null) {
+              await prof.loadProfile(auth.user!.id);
+            }
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ==================== WELCOME CARD ====================
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.primaryGradient,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Welcome back,',
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.8),
+                              fontSize: 16)),
+                      const SizedBox(height: 4),
+                      Text(name,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _pill(profile?.college ?? 'No College'),
+                          _pill('Semester ${profile?.semester ?? 1}'),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 24),
+
+                // ==================== RATINGS ROW ====================
+                Row(
                   children: [
-                    Text('Welcome back,',
-                        style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
-                            fontSize: 16)),
-                    const SizedBox(height: 4),
-                    Text(name,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _pill(profile?.college ?? 'No College'),
-                        _pill('Semester ${profile?.semester ?? 1}'),
-                      ],
+                    _statCard(
+                      label: 'Teaching',
+                      value: provider.teachingReviewCount > 0
+                          ? '${provider.teachingRating.toStringAsFixed(1)} ★'
+                          : '—',
+                      icon: Icons.school,
+                      iconColor: Colors.amber,
+                    ),
+                    const SizedBox(width: 12),
+                    _statCard(
+                      label: 'Learning',
+                      value: provider.learningReviewCount > 0
+                          ? '${provider.learningRating.toStringAsFixed(1)} ★'
+                          : '—',
+                      icon: Icons.book,
+                      iconColor: Colors.orange,
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 24),
+                const SizedBox(height: 12),
 
-              // ============ RATINGS ROW ============
-              Row(
-                children: [
-                  _statCard(
-                    label: 'Teaching',
-                    value: provider.teachingReviewCount > 0
-                        ? '${provider.teachingRating.toStringAsFixed(1)} ★'
-                        : '—',
-                    icon: Icons.school,
-                    iconColor: Colors.amber,
-                  ),
-                  const SizedBox(width: 12),
-                  _statCard(
-                    label: 'Learning',
-                    value: provider.learningReviewCount > 0
-                        ? '${provider.learningRating.toStringAsFixed(1)} ★'
-                        : '—',
-                    icon: Icons.book,
-                    iconColor: Colors.orange,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
+                // ==================== SESSIONS ROW ====================
+                Row(
+                  children: [
+                    _statCard(
+                      label: 'Taught',
+                      value: provider.taughtCount.toString(),
+                      icon: Icons.school,
+                      iconColor: AppColors.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    _statCard(
+                      label: 'Learned',
+                      value: provider.learnedCount.toString(),
+                      icon: Icons.book,
+                      iconColor: Colors.green,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
 
-              // ============ SESSIONS ROW ============
-              Row(
-                children: [
-                  _statCard(
-                    label: 'Taught',
-                    value: provider.taughtCount.toString(),
-                    icon: Icons.school,
-                    iconColor: AppColors.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  _statCard(
-                    label: 'Learned',
-                    value: provider.learnedCount.toString(),
-                    icon: Icons.book,
-                    iconColor: Colors.green,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-
-              // ============ QUICK ACTIONS ============
-              const Text('Quick Actions',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final cardWidth = (constraints.maxWidth - 24) / 3;
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      _actionCard('Edit Profile', Icons.edit, cardWidth, () async {
-                        final auth =
-                        Provider.of<AuthProvider>(context, listen: false);
-                        final userId = auth.user!.id;
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const EditProfileScreen()),
-                        );
-                        if (mounted) provider.loadProfile(userId);
-                      }),
-                      _actionCard('Add Skills', Icons.add_circle, cardWidth,
-                              () async {
-                            final auth =
-                            Provider.of<AuthProvider>(context, listen: false);
-                            final userId = auth.user!.id;
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const AddSkillScreen()),
-                            );
-                            if (mounted) provider.loadProfile(userId);
-                          }),
-                      _actionCard('Find Students', Icons.search, cardWidth, () {
-                        setState(() => _selectedIndex = 2);
-                      }),
-                      _actionCard('My Meetings', Icons.video_call, cardWidth,
-                              () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const MeetingsScreen()),
-                            );
-                          }),
-                      _actionCard('Reviews', Icons.star, cardWidth, () {
-                        final auth =
-                        Provider.of<AuthProvider>(context, listen: false);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ReviewsListScreen(
-                              userId: auth.user!.id,
-                              userName: provider.profile?.fullName ?? 'Me',
-                              showAsOwner: true,
+                // ==================== QUICK ACTIONS ====================
+                const Text('Quick Actions',
+                    style:
+                    TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final cardWidth = (constraints.maxWidth - 24) / 3;
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        _actionCard('Edit Profile', Icons.edit, cardWidth,
+                                () async {
+                              final auth = Provider.of<AuthProvider>(context,
+                                  listen: false);
+                              final userId = auth.user!.id;
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const EditProfileScreen()),
+                              );
+                              if (mounted) provider.loadProfile(userId);
+                            }),
+                        _actionCard('Add Skills', Icons.add_circle, cardWidth,
+                                () async {
+                              final auth = Provider.of<AuthProvider>(context,
+                                  listen: false);
+                              final userId = auth.user!.id;
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const AddSkillScreen()),
+                              );
+                              if (mounted) provider.loadProfile(userId);
+                            }),
+                        _actionCard(
+                            'Find Students', Icons.search, cardWidth, () {
+                          setState(() => _selectedIndex = 2);
+                        }),
+                        _actionCard(
+                            'My Meetings', Icons.video_call, cardWidth, () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const MeetingsScreen()),
+                          );
+                        }),
+                        _actionCard('Reviews', Icons.star, cardWidth, () {
+                          final auth = Provider.of<AuthProvider>(context,
+                              listen: false);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ReviewsListScreen(
+                                userId: auth.user!.id,
+                                userName:
+                                provider.profile?.fullName ?? 'Me',
+                                showAsOwner: true,
+                              ),
                             ),
-                          ),
-                        );
-                      }),
-                      _actionCard('Requests', Icons.mail, cardWidth, () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const RequestsScreen()),
-                        );
-                      }),
-                    ],
-                  );
-                },
-              ),
-            ],
+                          );
+                        }),
+                        _actionCard('Requests', Icons.mail, cardWidth, () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const RequestsScreen()),
+                          );
+                        }),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
         );
       },

@@ -8,6 +8,7 @@ import '../../providers/profile_provider.dart';
 import '../../providers/review_provider.dart';
 import '../../widgets/profile/profile_picture.dart';
 import 'write_review_screen.dart';
+import 'package:flutter/services.dart';
 
 class MeetingDetailScreen extends StatefulWidget {
   final String meetingId;
@@ -82,36 +83,54 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
 
   Future<void> _joinMeeting() async {
     final m = widget.meetingData;
-    final isTeacher = m['is_teacher'] == true;
+    final joinUrl = (m['zoom_join_url'] ?? '').toString();
+    final meetingId = (m['zoom_meeting_id'] ?? '').toString();
 
-    final url = isTeacher
-        ? (m['zoom_start_url'] ?? '')
-        : (m['zoom_join_url'] ?? '');
-
-    if (url.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Zoom link not available'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+    if (joinUrl.isEmpty) {
+      _snack('Zoom link not available', AppColors.error);
       return;
     }
 
-    try {
-      final uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        throw 'Could not launch Zoom';
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+    // Extract password from join_url (?pwd=...)
+    final pwd = Uri.tryParse(joinUrl)?.queryParameters['pwd'] ?? '';
+
+    // 1) Try Zoom app deep link
+    if (meetingId.isNotEmpty) {
+      final deepLink = Uri.parse(
+        'zoommtg://zoom.us/join?confno=$meetingId'
+            '${pwd.isNotEmpty ? '&pwd=$pwd' : ''}',
+      );
+      try {
+        if (await launchUrl(deepLink,
+            mode: LaunchMode.externalNonBrowserApplication)) {
+          return;
+        }
+      } catch (e) {
+        debugPrint('Zoom deep link failed: $e');
       }
     }
+
+    // 2) Fall back to the https link in an external browser
+    try {
+      final ok = await launchUrl(
+        Uri.parse(joinUrl),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok) throw 'launchUrl returned false';
+    } catch (e) {
+      if (!mounted) return;
+      _snack('Could not open Zoom: $e', AppColors.error);
+      // 3) Last resort: let the user copy the link
+      await Clipboard.setData(ClipboardData(text: joinUrl));
+      _snack('Link copied — paste it in your browser', AppColors.primary);
+    }
+  }
+
+  void _snack(String msg, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: color),
+    );
   }
 
   Future<void> _cancelMeeting() async {
