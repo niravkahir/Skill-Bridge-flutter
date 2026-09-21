@@ -82,16 +82,30 @@ class AuthService {
           .get();
 
       if (!doc.exists) {
-        throw Exception('User data not found');
+        await _auth.signOut();
+        throw Exception('User data not found. Please contact support.');
       }
 
-      return UserModel.fromFirestore(
-        doc.data() as Map<String, dynamic>,
-        doc.id,
-      );
+      final data = doc.data() as Map<String, dynamic>;
+      final status = data['status'] ?? 'active';
+
+      if (status == 'deactivated') {
+        await _auth.signOut();
+        throw Exception(
+          'Your account has been deactivated. Please contact admin.',
+        );
+      }
+
+      return UserModel.fromFirestore(data, doc.id);
     } on FirebaseAuthException catch (e) {
       throw _handleAuthError(e);
     } catch (e) {
+
+      if (e.toString().contains('deactivated')) {
+        throw Exception(
+          'Your account has been deactivated. Please contact admin.',
+        );
+      }
       throw Exception('Login failed: ${e.toString()}');
     }
   }

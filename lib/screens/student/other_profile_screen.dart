@@ -37,6 +37,10 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
 
   bool _isLoadingStats = true;
 
+  // ✅ Deactivation check
+  bool get isDeactivated =>
+      widget.studentData['account_status'] == 'deactivated';
+
   @override
   void initState() {
     super.initState();
@@ -70,6 +74,17 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
   }
 
   void _openSendRequest() {
+    // ✅ Block if deactivated
+    if (isDeactivated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This account is deactivated'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     if (widget.teachSkills.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -106,14 +121,20 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // ==================== PROFILE HEADER ====================
             Center(
               child: Column(
                 children: [
-                  ProfilePicture(
-                    imageUrl: s['profile_image'],
-                    size: 120,
+                  Opacity(
+                    opacity: isDeactivated ? 0.4 : 1.0,
+                    child: ProfilePicture(
+                      imageUrl: s['profile_image'],
+                      size: 120,
+                    ),
                   ),
                   const SizedBox(height: 16),
+
+                  // Name + badges
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -127,7 +148,35 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (_reviewCount > 0) ...[
+                      if (isDeactivated) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.error),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.block,
+                                  color: AppColors.error, size: 14),
+                              SizedBox(width: 4),
+                              Text(
+                                'Deactivated',
+                                style: TextStyle(
+                                  color: AppColors.error,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (_reviewCount > 0 && !isDeactivated) ...[
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -170,7 +219,37 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
               ),
             ),
 
-            // ============ SPLIT STATS ============
+            // ==================== DEACTIVATED WARNING ====================
+            if (isDeactivated) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.error.withOpacity(0.5)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.block, color: AppColors.error, size: 22),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'This account has been deactivated by admin.',
+                        style: TextStyle(
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            // ==================== SPLIT STATS ====================
             _isLoadingStats
                 ? const Padding(
               padding: EdgeInsets.symmetric(vertical: 20),
@@ -221,6 +300,7 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
             ),
             const SizedBox(height: 24),
 
+            // ==================== INFO CARDS ====================
             _infoCard(
               icon: Icons.school,
               label: 'College',
@@ -240,6 +320,7 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
             ),
             const SizedBox(height: 24),
 
+            // ==================== SKILLS ====================
             _skillSection(
               title: '🛠️ Skills They Can Teach',
               skills: widget.teachSkills,
@@ -251,7 +332,7 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
             ),
             const SizedBox(height: 24),
 
-            // See Reviews
+            // ==================== SEE REVIEWS ====================
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -287,35 +368,62 @@ class _OtherProfileScreenState extends State<OtherProfileScreen> {
             ),
             const SizedBox(height: 12),
 
-            // Request button
-            SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: ElevatedButton.icon(
-                onPressed: _openSendRequest,
-                icon: const Icon(
-                  Icons.send,
-                  color: AppColors.primary,
-                  size: 20,
+            // ==================== REQUEST BUTTON / WARNING ====================
+            if (isDeactivated)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.error.withOpacity(0.5)),
                 ),
-                label: const Text(
-                  'Request Learning Session',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                child: const Row(
+                  children: [
+                    Icon(Icons.block, color: AppColors.error, size: 22),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'This account is deactivated. You cannot send a request.',
+                        style: TextStyle(
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton.icon(
+                  onPressed: _openSendRequest,
+                  icon: const Icon(
+                    Icons.send,
                     color: AppColors.primary,
+                    size: 20,
                   ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary.withOpacity(0.1),
-                  foregroundColor: AppColors.primary,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  label: const Text(
+                    'Request Learning Session',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary.withOpacity(0.1),
+                    foregroundColor: AppColors.primary,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
-            ),
             const SizedBox(height: 16),
           ],
         ),

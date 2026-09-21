@@ -119,8 +119,6 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-
-              // ✅ FIXED: Search Students button — matches Edit Profile style
               SizedBox(
                 width: double.infinity,
                 height: 54,
@@ -188,28 +186,38 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _studentTile(Map<String, dynamic> s) {
+    final isDeactivated = s['account_status'] == 'deactivated';
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
         contentPadding: const EdgeInsets.all(12),
-        leading: CircleAvatar(
-          radius: 28,
-          backgroundColor: AppColors.primary.withOpacity(0.1),
-          backgroundImage: (s['profile_image'] != null &&
-              s['profile_image'].toString().isNotEmpty)
-              ? NetworkImage(s['profile_image'])
-              : null,
-          child: (s['profile_image'] == null ||
-              s['profile_image'].toString().isEmpty)
-              ? Icon(Icons.person, color: AppColors.primary, size: 30)
-              : null,
+        leading: Opacity(
+          opacity: isDeactivated ? 0.4 : 1.0,
+          child: CircleAvatar(
+            radius: 28,
+            backgroundColor: AppColors.primary.withOpacity(0.1),
+            backgroundImage: (s['profile_image'] != null &&
+                s['profile_image'].toString().isNotEmpty)
+                ? NetworkImage(s['profile_image'])
+                : null,
+            child: (s['profile_image'] == null ||
+                s['profile_image'].toString().isEmpty)
+                ? Icon(Icons.person, color: AppColors.primary, size: 30)
+                : null,
+          ),
         ),
         title: Row(
           children: [
             Flexible(
               child: Text(
                 s['full_name'] ?? 'Unknown',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isDeactivated
+                      ? AppColors.textHint
+                      : AppColors.textPrimary,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -217,10 +225,33 @@ class _SearchScreenState extends State<SearchScreen> {
               const SizedBox(width: 6),
               const Icon(Icons.verified, color: Colors.blue, size: 18),
             ],
+            if (isDeactivated) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'Deactivated',
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: AppColors.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
         subtitle: Text('${s['college'] ?? ''} • Sem ${s['semester'] ?? 1}'),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        trailing: Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: isDeactivated ? AppColors.textHint : null,
+        ),
         onTap: () async {
           // Show loading
           showDialog(

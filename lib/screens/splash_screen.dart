@@ -39,15 +39,11 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _navigateNext() async {
-    // Total splash duration: 2.5 seconds
     await Future.delayed(const Duration(milliseconds: 2500));
-
     if (!mounted) return;
 
     final auth = Provider.of<AuthProvider>(context, listen: false);
-
-    // Small delay to let Firebase restore session on web
-    await Future.delayed(const Duration(milliseconds: 300));
+    await auth.checkAuthStatus();
 
     if (!mounted) return;
 

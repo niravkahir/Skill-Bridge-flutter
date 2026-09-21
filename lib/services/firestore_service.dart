@@ -200,13 +200,13 @@ class FirestoreService {
               .get();
 
           String email = '';
+          Map<String, dynamic>? userData;
           if (userDoc.exists) {
-            final userData = userDoc.data();
+            userData = userDoc.data();
             if (userData != null && userData['email'] != null) {
               email = userData['email'] as String;
             }
           }
-
           students.add({
             'profile_id': doc.id,
             'user_id': data['user_id'] ?? '',
@@ -217,6 +217,7 @@ class FirestoreService {
             'profile_image': data['profile_image'] ?? '',
             'verification_status': data['verification_status'] ?? 'pending',
             'email': email,
+            'account_status': (userData?['status'] ?? 'active') as String,
           });
         }
       }
@@ -296,23 +297,28 @@ class FirestoreService {
           .where(FieldPath.documentId, whereIn: userIds)
           .get();
 
+      // Build email + status maps from users collection
       final emailMap = <String, String>{};
+      final statusMap = <String, String>{};
       for (var d in userDocs.docs) {
         emailMap[d.id] = (d.data()['email'] ?? '') as String;
+        statusMap[d.id] = (d.data()['status'] ?? 'active') as String;
       }
 
       return profileDocs.docs.map((d) {
         final data = d.data();
+        final userId = data['user_id'] as String? ?? '';
         return {
           'profile_id': d.id,
-          'user_id': data['user_id'] ?? '',
+          'user_id': userId,
           'full_name': data['full_name'] ?? 'Unknown',
           'college': data['college'] ?? '',
           'semester': data['semester'] ?? 1,
           'bio': data['bio'] ?? '',
           'profile_image': data['profile_image'] ?? '',
           'verification_status': data['verification_status'] ?? 'pending',
-          'email': emailMap[data['user_id']] ?? '',
+          'email': emailMap[userId] ?? '',
+          'account_status': statusMap[userId] ?? 'active',
         };
       }).toList();
     } catch (e) {
@@ -1352,6 +1358,104 @@ class FirestoreService {
       return results;
     } catch (e) {
       throw Exception('Failed to get written reviews: $e');
+    }
+  }
+
+  // ==================== ADMIN — USER MANAGEMENT ====================
+
+  /// Get all users (with profile info) for admin panel
+  Future<List<Map<String, dynamic>>> getAllUsersForAdmin() async {
+    try {
+      final usersSnap = await _firestore.collection('users').get();
+
+      final List<Map<String, dynamic>> results = [];
+
+      for (var doc in usersSnap.docs) {
+        final data = doc.data();
+        final userId = doc.id;
+
+        // Fetch profile
+        final profileDoc =
+        await _firestore.collection('profiles').doc(userId).get();
+        final profileData = profileDoc.data() ?? {};
+
+        // Counts
+        final taughtSnap = await _firestore
+            .collection('meetings')
+            .where('teacher_id', isEqualTo: userId)
+            .where('status', isEqualTo: 'completed')
+            .get();
+
+        final learnedSnap = await _firestore
+            .collection('meetings')
+            .where('learner_id', isEqualTo: userId)
+            .where('status', isEqualTo: 'completed')
+            .get();
+
+        results.add({
+          'id': userId,
+          'email': data['email'] ?? '',
+          'role': data['role'] ?? 'student',
+          'status': data['status'] ?? 'active',
+          'created_at': data['created_at'],
+          'full_name': profileData['full_name'] ?? 'No Name',
+          'college': profileData['college'] ?? '',
+          'semester': profileData['semester'] ?? 1,
+          'profile_image': profileData['profile_image'] ?? '',
+          'taught_count': taughtSnap.docs.length,
+          'learned_count': learnedSnap.docs.length,
+        });
+      }
+
+      // Sort: newest first
+      results.sort((a, b) {
+        final aTime = a['created_at'] != null
+            ? (a['created_at'] as Timestamp).millisecondsSinceEpoch
+            : 0;
+        final bTime = b['created_at'] != null
+            ? (b['created_at'] as Timestamp).millisecondsSinceEpoch
+            : 0;
+        return bTime.compareTo(aTime);
+      });
+
+      return results;
+    } catch (e) {
+      throw Exception('Failed to get users: $e');
+    }
+  }
+
+  /// Update user status (active / deactivated)
+  Future<void> updateUserStatus({
+    required String userId,
+    required String status,
+  }) async {
+    try {
+      await _firestore.collection('users').doc(userId).update({
+        'status': status,
+        'updated_at': Timestamp.now(),
+      });
+    } catch (e) {
+      throw Exception('Failed to update user status: $e');
+    }
+  }
+
+  /// Delete a user (Firestore only — auth remains)
+  Future<void> deleteUserData(String userId) async {
+    try {
+      // Delete profile
+      await _firestore.collection('profiles').doc(userId).delete();
+      // Delete user doc
+      await _firestore.collection('users').doc(userId).delete();
+      // Delete user_skills
+      final skillsSnap = await _firestore
+          .collection('user_skills')
+          .where('user_id', isEqualTo: userId)
+          .get();
+      for (var doc in skillsSnap.docs) {
+        await doc.reference.delete();
+      }
+    } catch (e) {
+      throw Exception('Failed to delete user: $e');
     }
   }
 }

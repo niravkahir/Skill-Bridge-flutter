@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart';
 import '../../config/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/meeting_provider.dart';
@@ -8,7 +10,6 @@ import '../../providers/profile_provider.dart';
 import '../../providers/review_provider.dart';
 import '../../widgets/profile/profile_picture.dart';
 import 'write_review_screen.dart';
-import 'package:flutter/services.dart';
 
 class MeetingDetailScreen extends StatefulWidget {
   final String meetingId;
@@ -70,7 +71,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
     if (result == 'submitted') {
       setState(() => _hasReviewed = true);
 
-      // ✅ Reload profile stats after review
+      // Reload own profile stats after review
       if (!mounted) return;
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final profileProvider =
@@ -81,6 +82,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
     }
   }
 
+  // ==================== JOIN MEETING ====================
   Future<void> _joinMeeting() async {
     final m = widget.meetingData;
     final joinUrl = (m['zoom_join_url'] ?? '').toString();
@@ -124,13 +126,6 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
       await Clipboard.setData(ClipboardData(text: joinUrl));
       _snack('Link copied — paste it in your browser', AppColors.primary);
     }
-  }
-
-  void _snack(String msg, Color color) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: color),
-    );
   }
 
   Future<void> _cancelMeeting() async {
@@ -186,6 +181,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
     }
   }
 
+  // ==================== COMPLETE MEETING ====================
   Future<void> _completeMeeting() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -222,16 +218,32 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
     setState(() => _isLoading = false);
 
     if (success) {
+      // ✅ Snackbar with reminder to leave Zoom
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ Meeting completed!'),
+          content: Text('✅ Meeting completed. Please leave the Zoom call.'),
           backgroundColor: AppColors.success,
+          duration: Duration(seconds: 4),
         ),
       );
       setState(() {
         widget.meetingData['status'] = 'completed';
       });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(provider.error ?? 'Failed to complete'),
+          backgroundColor: AppColors.error,
+        ),
+      );
     }
+  }
+
+  void _snack(String msg, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: color),
+    );
   }
 
   @override
@@ -261,7 +273,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Status banner
+                // ==================== STATUS BANNER ====================
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
@@ -303,7 +315,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Other user card
+                // ==================== OTHER USER ====================
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -367,6 +379,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                 ),
                 const SizedBox(height: 16),
 
+                // ==================== DETAILS ====================
                 _detailCard(
                   icon: Icons.school,
                   label: 'Skill',
@@ -393,6 +406,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                   value: m['topic'] ?? 'Session',
                 ),
 
+                // ==================== ZOOM INFO ====================
                 if (status == 'scheduled') ...[
                   const SizedBox(height: 24),
                   Container(
@@ -435,7 +449,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
 
                 const SizedBox(height: 24),
 
-                // Action buttons (scheduled)
+                // ==================== ACTION BUTTONS (scheduled) ====================
                 if (status == 'scheduled') ...[
                   SizedBox(
                     width: double.infinity,
@@ -444,11 +458,9 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                       onPressed: _isLoading ? null : _joinMeeting,
                       icon: const Icon(Icons.videocam,
                           color: Colors.white, size: 22),
-                      label: Text(
-                        isTeacher
-                            ? 'Start Meeting (Host)'
-                            : 'Join Meeting',
-                        style: const TextStyle(
+                      label: const Text(
+                        'Join Meeting',
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: Colors.white,
@@ -513,7 +525,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                   ),
                 ],
 
-                // Completed → Review CTA
+                // ==================== COMPLETED + REVIEW CTA ====================
                 if (status == 'completed') ...[
                   const SizedBox(height: 24),
                   Container(
@@ -537,6 +549,17 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                             fontWeight: FontWeight.bold,
                             color: AppColors.success,
                           ),
+                        ),
+                        const SizedBox(height: 8),
+                        // ✅ Reminder to leave Zoom
+                        const Text(
+                          '📞 Please leave the Zoom call.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                            fontStyle: FontStyle.italic,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 16),
 
@@ -603,7 +626,7 @@ class _MeetingDetailScreenState extends State<MeetingDetailScreen> {
                   ),
                 ],
 
-                // Cancelled
+                // ==================== CANCELLED ====================
                 if (status == 'cancelled') ...[
                   const SizedBox(height: 24),
                   Container(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
@@ -100,20 +101,34 @@ class AuthProvider extends ChangeNotifier {
 
   // Check if user is logged in (call on app start)
   Future<void> checkAuthStatus() async {
-    if (_authService.isLoggedIn) {
-      final userId = _authService.userId;
-      if (userId != null) {
-        // Could fetch user data from Firestore here
-        // For now, just set a placeholder
-        _user = UserModel(
-          id: userId,
-          email: _authService.currentUser?.email ?? '',
-          role: 'student',
-          status: 'active',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
+    if (!_authService.isLoggedIn) {
+      notifyListeners();
+      return;
+    }
+
+    final userId = _authService.userId;
+    if (userId == null) {
+      notifyListeners();
+      return;
+    }
+
+    try {
+      // ✅ Check status from Firestore
+      final FirestoreService firestoreService = FirestoreService();
+      final user = await firestoreService.getUser(userId);
+
+      if (user == null || user.status == 'deactivated') {
+        // Deactivated → force logout
+        await _authService.logout();
+        _user = null;
+        _error = 'Your account has been deactivated.';
+        notifyListeners();
+        return;
       }
+
+      _user = user;
+    } catch (e) {
+      _error = e.toString();
     }
     notifyListeners();
   }
