@@ -12,12 +12,12 @@ Browse skills, manage your profile, view ratings, and explore learning opportuni
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/9144f74f-e8c5-4c8c-a4a8-91bfd8a8b0f5" width="42%" alt="Student Dashboard" />
-  <img src="https://github.com/user-attachments/assets/e85d6f2c-d333-4eb8-9c3f-da7084c58407" width="42%" alt="Student Profile" />
+  <img src="https://github.com/user-attachments/assets/9b70170e-a46a-4a29-bde4-184666a6184c" width="42%" alt="Skill Discovery" />
 </p>
 
 <p align="center">
+  <img src="https://github.com/user-attachments/assets/e85d6f2c-d333-4eb8-9c3f-da7084c58407" width="42%" alt="Student Profile" />
   <img src="https://github.com/user-attachments/assets/c35a89cd-2e12-4d23-b16d-a29d054e5ee1" width="42%" alt="Student Skills" />
-  <img src="https://github.com/user-attachments/assets/9b70170e-a46a-4a29-bde4-184666a6184c" width="42%" alt="Skill Discovery" />
 </p>
 
 ### 🤝 Learning Requests & Meeting Scheduling
